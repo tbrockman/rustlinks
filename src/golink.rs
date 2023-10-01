@@ -1,5 +1,6 @@
 use std::hash::Hash;
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Golink {
     pub alias: String,
     pub url: Option<String>,

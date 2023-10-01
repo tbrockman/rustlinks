@@ -1312,6 +1312,8 @@ dependencies = [
  "actix-web",
  "etcd-rs",
  "futures",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
