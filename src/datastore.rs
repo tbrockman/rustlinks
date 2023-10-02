@@ -109,6 +109,9 @@ impl Worker {
     async fn get_links(&self) -> Result<HashMap<RustlinkAlias, Rustlink>, Error> {
         let key_range = KeyRange::prefix(NAMESPACE);
         // TODO: only get links since last seen revision
+        // order by last modified descending
+        // limit to `n` links at most
+        // update links stored in memory
         let proto = etcd_rs::proto::etcdserverpb::RangeRequest {
             key: key_range.key,
             range_end: key_range.range_end,

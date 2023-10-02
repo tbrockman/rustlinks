@@ -9,14 +9,14 @@ use crate::rustlink;
 
 pub struct AppState {
     pub(crate) rustlinks: Arc<RwLock<HashMap<RustlinkAlias, rustlink::Rustlink>>>,
-    pub(crate) last_mod_revision: Arc<RwLock<i64>>,
+    pub(crate) revision: Arc<RwLock<i64>>,
     pub(crate) client: Arc<Client>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct SerdeAppState {
     pub(crate) rustlinks: HashMap<RustlinkAlias, rustlink::Rustlink>,
-    pub(crate) last_mod_revision: i64,
+    pub(crate) revision: i64,
 }
 
 impl From<AppState> for SerdeAppState {
@@ -27,15 +27,15 @@ impl From<AppState> for SerdeAppState {
             rustlinks.extend(links.clone());
         }
 
-        let mut last_mod_revision = 0;
+        let mut revision = 0;
 
-        if let Ok(revision) = state.last_mod_revision.read() {
-            last_mod_revision = *revision;
+        if let Ok(read_revision) = state.revision.read() {
+            revision = *read_revision;
         }
 
         SerdeAppState {
             rustlinks,
-            last_mod_revision,
+            revision,
         }
     }
 }

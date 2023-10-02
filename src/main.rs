@@ -150,7 +150,7 @@ async fn start(cli: Cli) -> Result<(), errors::StartError> {
     let state = web::Data::new(state::AppState {
         rustlinks: Arc::new(RwLock::new(rustlinks)),
         client: Arc::new(client),
-        last_mod_revision: Arc::new(RwLock::new(0)),
+        revision: Arc::new(RwLock::new(0)),
     });
     let worker = Box::new(Worker {
         state: state.clone(),
