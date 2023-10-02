@@ -15,7 +15,6 @@ services:
       --initial-cluster 'etcd0=http://192.168.12.50:2380'
       --initial-cluster-state new
     volumes:
-      - ./etcd-data:/etcd-data
       - /usr/share/ca-certificates/:/etc/ssl/certs
     ports:
       - 2379:2379

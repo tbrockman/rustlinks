@@ -6,8 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-web = "4.4.0"
-etcd-rs = "1.0"
+actix-web = { version = "4.4.0", features = ["rustls"] }
+clap = { version = "4.4.6", features = ["derive", "env"] }
+etcd-rs = { path = "src/etcd-rs"}
 futures = "0.3.28"
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
