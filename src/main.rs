@@ -1,5 +1,6 @@
 #![feature(str_split_remainder)]
 #![feature(let_chains)]
+#![feature(async_closure)]
 
 pub mod api;
 pub mod datastore;
@@ -9,13 +10,14 @@ pub mod util;
 use std::{
     collections::HashMap,
     path::PathBuf,
-    sync::{Arc, Mutex, RwLock},
+    sync::Arc, fs::{File, OpenOptions},
 };
 
 use actix_web::{get, web, App, Either, HttpResponse, HttpServer};
 use clap::{Parser, Subcommand};
 use datastore::Worker;
 use etcd_rs::{Client, ClientConfig, Endpoint};
+use tokio::sync::{RwLock, Mutex};
 
 use crate::errors::StartError;
 
@@ -23,6 +25,8 @@ type RustlinkAlias = String;
 
 pub mod errors;
 pub mod state;
+
+const LINK_FILENAME: &str = "links.json";
 
 #[get("/{alias:.*}")]
 async fn redirect(
@@ -36,8 +40,8 @@ async fn redirect(
 
     println!("alias: {}", alias);
     println!("params: {:?}", params);
-    println!("have links: {:?}", data.rustlinks.read().unwrap());
-    let guard = data.rustlinks.read().unwrap();
+    println!("have links: {:?}", data.rustlinks.read().await);
+    let guard = data.rustlinks.read().await;
     match guard.get(alias) {
         Some(rustlink) => {
             Either::Left(web::Redirect::to(rustlink.url.clone().unwrap()).permanent())
@@ -104,15 +108,15 @@ enum Commands {
     Start {
         /// Hostname or IP address to bind to
         #[arg(long, default_value = "127.0.0.1")]
-        hostname: Option<String>,
+        hostname: String,
 
         /// Port to bind to
         #[arg(short, long, default_value = "8080")]
-        port: Option<u16>,
+        port: u16,
 
         /// Path to a directory to persist Rustlink data
-        #[arg(long, default_value = "~/.rustlinks/")]
-        data_dir: Option<PathBuf>,
+        #[arg(long, default_value = ".rustlinks/")]
+        data_dir: PathBuf,
     },
     /// Configure the application, automatically performs certificate
     /// generation, role provisioning, and other setup required for
@@ -147,14 +151,29 @@ async fn start(cli: Cli) -> Result<(), errors::StartError> {
     .await
     .unwrap();
 
+    let Commands::Start{hostname, port, data_dir}: Commands = cli.command else {
+        unreachable!();   
+    };
+    let links_filepath = data_dir.join(LINK_FILENAME);
+    // TODO: create necessary dirs recursively
+    let links_file: Option<File> = match OpenOptions::new().write(true).create(true).append(false).open(links_filepath.clone()) {
+        Ok(f) => Some(f),
+        Err(n) => {
+            eprint!("Error creating links file: {:?} at location: {:?}", n, links_filepath);
+            None
+        }
+    };
+
     let state = web::Data::new(state::AppState {
         rustlinks: Arc::new(RwLock::new(rustlinks)),
         client: Arc::new(client),
         revision: Arc::new(RwLock::new(0)),
+        links_file: Arc::new(RwLock::new(links_file)),
     });
     let worker = Box::new(Worker {
         state: state.clone(),
         cancel: Arc::new(Mutex::new(None)),
+        sleep: Arc::new(Mutex::new(None))
     });
     let server_future = HttpServer::new(move || {
         App::new()

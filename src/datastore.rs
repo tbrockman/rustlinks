@@ -1,16 +1,15 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, io::Write, sync::Arc, time::Duration};
 
-use etcd_rs::{Error, KeyRange, KeyValueOp, WatchInbound, WatchOp};
+use etcd_rs::{Error, KeyRange, KeyValueOp, WatchCanceler, WatchInbound, WatchOp, WatchStream};
+use tokio::{sync::Mutex, time::sleep};
 
 use crate::{rustlink::Rustlink, state::AppState, util, RustlinkAlias};
 
 #[derive(Clone)]
 pub struct Worker {
     pub state: actix_web::web::Data<AppState>,
-    pub cancel: Arc<Mutex<Option<etcd_rs::WatchCanceler>>>,
+    pub cancel: Arc<Mutex<Option<WatchCanceler>>>,
+    pub sleep: Arc<Mutex<Option<()>>>,
 }
 
 const NAMESPACE: &str = "rustlinks";
@@ -29,9 +28,11 @@ impl Worker {
         let remote_links = self.get_links().await;
 
         if remote_links.is_ok() {
-            if let Ok(mut local_links) = self.state.rustlinks.write() {
-                local_links.extend(remote_links.unwrap())
-            }
+            let mut local_links = self.state.rustlinks.write().await;
+            local_links.extend(remote_links.unwrap());
+            self.persist(local_links.clone())
+                .await
+                .expect("Failed persisting links");
         } else {
             eprintln!(
                 "Failed to retrieve any remote links to initialize with: {:?}",
@@ -39,40 +40,67 @@ impl Worker {
             );
         }
 
-        let (mut stream, cancel) = self
-            .state
-            .client
-            .watch(KeyRange::prefix(NAMESPACE))
-            .await
-            .expect("watch by prefix");
-        {
-            *self.cancel.lock().expect("mutex lock") = Some(cancel);
+        // TODO: fix this
+        let mut stream: WatchStream;
+        let mut backoff = 1;
+
+        loop {
+            let watch = self.state.client.watch(KeyRange::prefix(NAMESPACE)).await;
+
+            match watch {
+                Ok((s, c)) => {
+                    stream = s;
+                    *self.cancel.lock().await = Some(c);
+                    break;
+                }
+                Err(e) => {
+                    eprint!("Failed to start etcd watch: {:?}, sleeping for {:?} seconds before retrying", e, backoff);
+                    *self.sleep.lock().await = Some(sleep(Duration::from_secs(backoff)).await);
+                    backoff = std::cmp::min(backoff * 2, 60);
+                }
+            }
         }
+
         loop {
             match stream.inbound().await {
                 WatchInbound::Ready(resp) => {
                     println!("receive event: {:?}", resp);
 
-                    resp.events.into_iter().for_each(|event| {
+                    let futs = resp.events.into_iter().map(|event| async move {
                         let alias = util::key_to_alias(event.kv.key_str());
 
                         match event.event_type {
                             etcd_rs::EventType::Put => {
                                 let value = event.kv.value;
-
-                                if let Ok(rustlink) = serde_json::from_slice(&value) && let Ok(mut rustlinks) = self.state.rustlinks.write() {
-                                    rustlinks.insert(alias, rustlink);
-                                } else {
-                                    eprintln!("Failed to deserialize and insert Rustlink: {:?}", value);
+                                match serde_json::from_slice(&value) {
+                                    Ok(rustlink) => {
+                                        let mut rustlinks = self.state.rustlinks.write().await;
+                                        rustlinks.insert(alias, rustlink);
+                                        Ok(())
+                                    }
+                                    Err(err) => Err(err),
                                 }
-                            },
+                            }
                             etcd_rs::EventType::Delete => {
-                                if let Ok(mut rustlinks) = self.state.rustlinks.write() {
-                                    rustlinks.remove(&alias);
-                                }
-                            },
+                                let mut rustlinks = self.state.rustlinks.write().await;
+                                rustlinks.remove(&alias);
+                                Ok(())
+                            }
                         }
-                    })
+                    });
+                    let results = futures::future::join_all(futs).await;
+                    let acc: Result<Vec<()>, serde_json::Error> = results.into_iter().collect();
+
+                    if acc.is_err() {
+                        eprintln!("failed to update links: {:?}", acc.err());
+                    }
+
+                    let rustlinks = self.state.rustlinks.write().await;
+                    let result = self.persist(rustlinks.clone()).await;
+
+                    if result.is_err() {
+                        eprintln!("Failed to persist links to disk: {:?}", result.err());
+                    }
                 }
                 WatchInbound::Interrupted(e) => {
                     match e {
@@ -97,12 +125,34 @@ impl Worker {
     }
 
     pub async fn stop(&self) -> Result<(), etcd_rs::Error> {
-        let mut cancel = self.cancel.lock().expect("mutex lock");
+        let mut cancel = self.cancel.lock().await;
         if let Some(canceler) = cancel.take() {
-            canceler.cancel().await
+            canceler.cancel().await.unwrap()
         } else {
             println!("nothing to cancel");
-            Ok(())
+        }
+
+        if let Some(sleep) = self.sleep.lock().await.take() {
+            drop(sleep);
+        }
+
+        Ok(())
+    }
+
+    async fn persist(
+        &self,
+        rustlinks: HashMap<RustlinkAlias, Rustlink>,
+    ) -> Result<(), std::io::Error> {
+        match self.state.links_file.write().await.take() {
+            Some(mut f) => {
+                let serde_state =
+                    serde_json::to_string(&rustlinks.clone()).unwrap_or("{}".to_string());
+                f.write_all(serde_state.as_bytes())
+            }
+            None => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "No links file to write to",
+            )),
         }
     }
 

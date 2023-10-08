@@ -10,10 +10,8 @@ pub async fn health() -> impl Responder {
 
 #[get("/links")]
 pub async fn get_rustlinks(data: web::Data<AppState>) -> impl Responder {
-    if let Ok(rustlinks) = data.rustlinks.read() {
-        return HttpResponse::Ok().json(rustlinks.values().collect::<Vec<&Rustlink>>());
-    }
-    return HttpResponse::InternalServerError().body("Failed to return links stored in server.");
+    let rustlinks = data.rustlinks.read().await;
+    return HttpResponse::Ok().json(rustlinks.values().collect::<Vec<&Rustlink>>());
 }
 
 #[put("/links/{alias}")]
