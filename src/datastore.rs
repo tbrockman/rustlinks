@@ -1,9 +1,19 @@
-use std::{collections::HashMap, io::Write, sync::Arc, time::Duration};
+use std::{
+    io::{Read, Seek, Write},
+    sync::Arc,
+    time::Duration,
+};
 
-use etcd_rs::{Error, KeyRange, KeyValueOp, WatchCanceler, WatchInbound, WatchOp, WatchStream};
+use etcd_rs::{
+    proto::etcdserverpb::WatchCreateRequest as ProtoWatchCreateRequest, KeyRange, WatchCanceler,
+    WatchCreateRequest, WatchInbound, WatchOp, WatchStream,
+};
 use tokio::{sync::Mutex, time::sleep};
 
-use crate::{rustlink::Rustlink, state::AppState, util, RustlinkAlias};
+use crate::{
+    state::{AppState, SerdeAppState},
+    util::{self, NAMESPACE},
+};
 
 #[derive(Clone)]
 pub struct Worker {
@@ -12,40 +22,56 @@ pub struct Worker {
     pub sleep: Arc<Mutex<Option<()>>>,
 }
 
-const NAMESPACE: &str = "rustlinks";
-
 // TODO:
 // At some point, it might make sense to re-write this to be more generic
-// We can say that the Worker struct is generic over a type that implements the
-// `Datastore` trait, which would have a `start` method, a `stop` method, a
-// `configure` method, and most importantly a `watch` method (which returns a
-// stream of upsert/delete events) This would allow us to swap out the etcd
-// implementation for a different implementation, like a Postgres
-// implementation, a Redis implementation, etc.
+// to allow swapping the backend for a different storage implementation
+// like Postgres, or MySQL, or Redis, or whatever
 
 impl Worker {
     pub async fn start(&self) -> std::io::Result<()> {
-        let remote_links = self.get_links().await;
+        {
+            let mut local_links_file = self.state.links_file.write().await;
 
-        if remote_links.is_ok() {
-            let mut local_links = self.state.rustlinks.write().await;
-            local_links.extend(remote_links.unwrap());
-            self.persist(local_links.clone())
-                .await
-                .expect("Failed persisting links");
-        } else {
-            eprintln!(
-                "Failed to retrieve any remote links to initialize with: {:?}",
-                remote_links.err()
-            );
+            if let Some(links_file) = local_links_file.as_mut() {
+                let mut buf: Vec<u8> = Vec::new();
+                let result = links_file.read_to_end(buf.as_mut());
+
+                if result.is_err() {
+                    eprintln!("Failed to read bytes from links file: {:?}", result.err())
+                } else {
+                    let de: Result<SerdeAppState, serde_json::Error> = serde_json::from_slice(&buf);
+                    match de {
+                        Ok(disk_state) => {
+                            let mut rustlinks = self.state.rustlinks.write().await;
+                            rustlinks.extend(disk_state.rustlinks);
+                            *self.state.revision.write().await = disk_state.revision;
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to deserialize links file: {:?}", e);
+                        }
+                    }
+                }
+            }
         }
-
-        // TODO: fix this
         let mut stream: WatchStream;
         let mut backoff = 1;
 
         loop {
-            let watch = self.state.client.watch(KeyRange::prefix(NAMESPACE)).await;
+            // TODO: watch request since last seen revision
+            let range = KeyRange::prefix(NAMESPACE);
+            let request = WatchCreateRequest {
+                proto: ProtoWatchCreateRequest {
+                    key: range.key,
+                    range_end: range.range_end,
+                    start_revision: self.state.revision.read().await.clone(),
+                    progress_notify: false,
+                    filters: vec![],
+                    prev_kv: false,
+                    fragment: false,
+                    watch_id: 0,
+                },
+            };
+            let watch = self.state.etcd_client.watch(request).await;
 
             match watch {
                 Ok((s, c)) => {
@@ -55,6 +81,7 @@ impl Worker {
                 }
                 Err(e) => {
                     eprint!("Failed to start etcd watch: {:?}, sleeping for {:?} seconds before retrying", e, backoff);
+                    // Store the sleep future in the worker so that it can be cancelled
                     *self.sleep.lock().await = Some(sleep(Duration::from_secs(backoff)).await);
                     backoff = std::cmp::min(backoff * 2, 60);
                 }
@@ -76,6 +103,9 @@ impl Worker {
                                     Ok(rustlink) => {
                                         let mut rustlinks = self.state.rustlinks.write().await;
                                         rustlinks.insert(alias, rustlink);
+
+                                        let mut revision = self.state.revision.write().await;
+                                        *revision = event.kv.mod_revision;
                                         Ok(())
                                     }
                                     Err(err) => Err(err),
@@ -84,6 +114,9 @@ impl Worker {
                             etcd_rs::EventType::Delete => {
                                 let mut rustlinks = self.state.rustlinks.write().await;
                                 rustlinks.remove(&alias);
+
+                                let mut revision = self.state.revision.write().await;
+                                *revision = event.kv.mod_revision;
                                 Ok(())
                             }
                         }
@@ -94,9 +127,7 @@ impl Worker {
                     if acc.is_err() {
                         eprintln!("failed to update links: {:?}", acc.err());
                     }
-
-                    let rustlinks = self.state.rustlinks.write().await;
-                    let result = self.persist(rustlinks.clone()).await;
+                    let result = self.persist().await;
 
                     if result.is_err() {
                         eprintln!("Failed to persist links to disk: {:?}", result.err());
@@ -125,75 +156,32 @@ impl Worker {
     }
 
     pub async fn stop(&self) -> Result<(), etcd_rs::Error> {
-        let mut cancel = self.cancel.lock().await;
-        if let Some(canceler) = cancel.take() {
-            canceler.cancel().await.unwrap()
-        } else {
-            println!("nothing to cancel");
-        }
-
+        // Cancel any pending sleeps
         if let Some(sleep) = self.sleep.lock().await.take() {
             drop(sleep);
         }
 
+        if let Some(canceler) = self.cancel.lock().await.take() {
+            canceler.cancel().await.unwrap()
+        } else {
+            println!("nothing to cancel");
+        }
         Ok(())
     }
 
-    async fn persist(
-        &self,
-        rustlinks: HashMap<RustlinkAlias, Rustlink>,
-    ) -> Result<(), std::io::Error> {
-        match self.state.links_file.write().await.take() {
+    async fn persist(&self) -> Result<(), std::io::Error> {
+        let serde_state = self.state.from().await;
+
+        match self.state.links_file.write().await.as_ref() {
             Some(mut f) => {
-                let serde_state =
-                    serde_json::to_string(&rustlinks.clone()).unwrap_or("{}".to_string());
-                f.write_all(serde_state.as_bytes())
+                let string = serde_json::to_string(&serde_state).unwrap_or("{}".to_string());
+                f.rewind()?;
+                f.write_all(string.as_bytes())
             }
             None => Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "No links file to write to",
             )),
-        }
-    }
-
-    async fn get_links(&self) -> Result<HashMap<RustlinkAlias, Rustlink>, Error> {
-        let key_range = KeyRange::prefix(NAMESPACE);
-        // TODO: only get links since last seen revision
-        // order by last modified descending
-        // limit to `n` links at most
-        // update links stored in memory
-        let proto = etcd_rs::proto::etcdserverpb::RangeRequest {
-            key: key_range.key,
-            range_end: key_range.range_end,
-            limit: 0,
-            revision: 0,
-            sort_order: 0,
-            sort_target: 0,
-            serializable: true,
-            keys_only: false,
-            count_only: false,
-            min_mod_revision: 0,
-            max_mod_revision: 0,
-            min_create_revision: 0,
-            max_create_revision: 0,
-        };
-        let request = etcd_rs::RangeRequest { proto: proto };
-        let result = self.state.client.get(request).await;
-
-        match result {
-            Ok(response) => {
-                let mut rustlinks: HashMap<RustlinkAlias, Rustlink> = HashMap::new();
-                response.kvs.into_iter().for_each(|kv| {
-                    let mut split = kv.key_str().split('/');
-                    split.next();
-                    let alias = split.remainder().unwrap().to_string();
-                    let value = kv.value.clone();
-                    let rustlink: Rustlink = serde_json::from_slice(&value).unwrap();
-                    rustlinks.insert(alias, rustlink);
-                });
-                Ok(rustlinks)
-            }
-            Err(e) => Err(e),
         }
     }
 

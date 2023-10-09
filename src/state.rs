@@ -11,7 +11,7 @@ use crate::rustlink;
 pub struct AppState {
     pub(crate) rustlinks: Arc<RwLock<HashMap<RustlinkAlias, rustlink::Rustlink>>>,
     pub(crate) revision: Arc<RwLock<i64>>,
-    pub(crate) client: Arc<Client>,
+    pub(crate) etcd_client: Arc<Client>,
     pub(crate) links_file: Arc<RwLock<Option<File>>>,
 }
 
@@ -22,16 +22,13 @@ pub struct SerdeAppState {
 }
 
 impl AppState {
-    async fn from(&self) -> SerdeAppState {
+    pub async fn from(&self) -> SerdeAppState {
         let mut rustlinks: HashMap<RustlinkAlias, rustlink::Rustlink> = HashMap::new();
 
         let links = self.rustlinks.read().await;
         rustlinks.extend(links.clone());
 
-        let mut revision = 0;
-
-        let read_revision = self.revision.read().await;
-        revision = *read_revision;
+        let revision = *self.revision.read().await;
 
         SerdeAppState {
             rustlinks,
