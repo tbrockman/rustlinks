@@ -17,53 +17,24 @@ use std::{
     sync::Arc, fs::{File, OpenOptions},
 };
 
-use actix_web::{web, App, HttpServer, dev::{ServiceFactory, ServiceRequest, ServiceResponse}, body::MessageBody, Error};
-#[cfg(feature = "tracing")]
+use actix_web::{web, App, HttpServer};
 use actix_web_opentelemetry::RequestTracing;
-#[cfg(feature = "metrics")]
 use actix_web_opentelemetry::RequestMetrics;
 use datastore::Worker;
 use etcd_rs::{Client, ClientConfig, Endpoint};
-use futures::io::Copy;
-#[cfg(any(feature = "tracing", feature = "metrics"))]
 use opentelemetry::runtime::TokioCurrentThread;
-use state::AppState;
 use tokio::sync::{RwLock, Mutex};
 
 type RustlinkAlias = String;
 
 const LINK_FILENAME: &str = "links.json";
 
-
-pub fn build_app(state: actix_web::web::Data<AppState>) -> App<
-            impl ServiceFactory<
-                ServiceRequest,
-                Response = ServiceResponse<impl MessageBody>,
-                Config = (),
-                InitError = (),
-                Error = Error
-            >,
-        > {
-            App::new()
-            .app_data(state)
-            .service(
-                web::scope("/api/v1")
-                    .service(health::check)
-                    .service(api::create_rustlink)
-                    .service(api::delete_rustlink)
-                    .service(api::get_rustlinks),
-            )
-            .service(redirect::redirect)
-        }
-
 async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
-    #[cfg(feature = "tracing")]
     let _ = opentelemetry_otlp::new_pipeline()
     .tracing()
     .with_exporter(opentelemetry_otlp::new_exporter().tonic())
     .install_batch(opentelemetry::runtime::TokioCurrentThread)?;
 
-    #[cfg(feature = "metrics")]
     let _ = opentelemetry_otlp::new_pipeline()
     .metrics(TokioCurrentThread)
     .with_exporter(opentelemetry_otlp::new_exporter().tonic())
@@ -104,8 +75,18 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         sleep: Arc::new(Mutex::new(None))
     });
     let server_future = HttpServer::new(move || {
-        let app = build_app(state.clone()).clone();
-        app.as_mut()
+        App::new()
+            .app_data(state.clone())
+            .service(
+                web::scope("/api/v1")
+                    .service(health::check)
+                    .service(api::create_rustlink)
+                    .service(api::delete_rustlink)
+                    .service(api::get_rustlinks),
+            )
+            .service(redirect::redirect)
+            .wrap(RequestMetrics::default())
+            .wrap(RequestTracing::new())
     })
     .bind(("127.0.0.1", 8080))?
     .run();

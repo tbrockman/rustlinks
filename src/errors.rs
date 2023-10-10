@@ -11,9 +11,7 @@ pub enum RustlinksError {
     EtcdError(etcd_rs::Error),
     ActixError(actix_web::Error),
     IoError(std::io::Error),
-    #[cfg(feature = "tracing")]
     TraceError(opentelemetry::trace::TraceError),
-    #[cfg(feature = "metrics")]
     MetricsError(opentelemetry::metrics::MetricsError),
 }
 
