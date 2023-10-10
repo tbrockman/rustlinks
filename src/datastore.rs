@@ -58,7 +58,6 @@ impl Worker {
         let mut backoff = 1;
 
         loop {
-            // TODO: watch request since last seen revision
             let range = KeyRange::prefix(NAMESPACE);
             let request = WatchCreateRequest {
                 proto: ProtoWatchCreateRequest {
@@ -90,9 +89,10 @@ impl Worker {
         }
 
         loop {
+            println!("polling for etcd inbound events...");
             match stream.inbound().await {
                 WatchInbound::Ready(resp) => {
-                    println!("receive event: {:?}", resp);
+                    println!("received event: {:?}", resp);
 
                     let futs = resp.events.into_iter().map(|event| async move {
                         let alias = util::key_to_alias(event.kv.key_str());
@@ -179,6 +179,7 @@ impl Worker {
         match self.state.links_file.write().await.as_ref() {
             Some(mut f) => {
                 let string = serde_json::to_string(&serde_state).unwrap_or("{}".to_string());
+                f.set_len(0)?;
                 f.rewind()?;
                 f.write_all(string.as_bytes())
             }

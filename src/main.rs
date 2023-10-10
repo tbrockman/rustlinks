@@ -30,10 +30,17 @@ type RustlinkAlias = String;
 const LINK_FILENAME: &str = "links.json";
 
 async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
+
+    // Enable tracing
+    // TODO: make configurable
+
     let _ = opentelemetry_otlp::new_pipeline()
     .tracing()
     .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-    .install_batch(opentelemetry::runtime::TokioCurrentThread)?;
+    .install_batch(TokioCurrentThread)?;
+
+    // Enable metrics
+    // TODO: make configurable
 
     let _ = opentelemetry_otlp::new_pipeline()
     .metrics(TokioCurrentThread)
@@ -117,9 +124,8 @@ async fn configure(cli: cli::RustlinksOpts) -> Result<(), ()> {
 async fn main() -> Result<(), errors::RustlinksError> {
     let cli = cli::RustlinksOpts::parse();
 
-    let result = match cli.command {
+    match cli.command {
         cli::Commands::Start { .. } => start(cli).await,
         _ => todo!(),
-    };
-    result
+    }
 }

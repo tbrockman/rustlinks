@@ -15,8 +15,10 @@ pub async fn create_rustlink(
     path: web::Path<String>,
     rustlink: web::Json<Rustlink>,
 ) -> impl Responder {
+    println!("creating rust link");
     if let Ok(bytes) = serde_json::to_vec(&rustlink) {
         let key = util::alias_to_key(&path.into_inner());
+        println!("using key: {:?} and value: {:?}", key, rustlink);
         let req = PutRequest::new(key, bytes.to_owned());
         match data.etcd_client.put(req).await {
             Ok(_) => HttpResponse::Ok().body("OK"),
