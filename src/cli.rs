@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 
+/// A simple application for managing short links
+/// For debug logs, set RUST_LOG=debug
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct RustlinksOpts {
@@ -20,16 +22,12 @@ impl RustlinksOpts {
 
 #[derive(Args, Debug)]
 pub struct GlobalOpts {
-    /// Optional path to a .toml config file (precendence = args > env vars >
-    /// config file)
-    #[arg(long)]
-    pub(crate) config: Option<PathBuf>,
-
-    /// Turn debug logging on
-    #[arg(short, long)]
-    pub(crate) debug: bool,
-
-    /// Hostname(s) or IP address(es) of the etcd server(s)
+    // /// Optional path to a .toml config file (precendence = args > env vars >
+    // /// config file)
+    // #[arg(long)]
+    // pub(crate) config: Option<PathBuf>,
+    /// Hostname(s) or IP address(es) of the etcd server(s), comma-separated if
+    /// using multiple
     #[arg(
         long,
         use_value_delimiter = true,

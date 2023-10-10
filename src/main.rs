@@ -17,19 +17,58 @@ use std::{
     sync::Arc, fs::{File, OpenOptions},
 };
 
-use actix_web::{web, App, HttpServer};
+use actix_web::{web, App, HttpServer, dev::{ServiceFactory, ServiceRequest, ServiceResponse}, body::MessageBody, Error};
+#[cfg(feature = "tracing")]
+use actix_web_opentelemetry::RequestTracing;
+#[cfg(feature = "metrics")]
+use actix_web_opentelemetry::RequestMetrics;
 use datastore::Worker;
 use etcd_rs::{Client, ClientConfig, Endpoint};
+use futures::io::Copy;
+#[cfg(any(feature = "tracing", feature = "metrics"))]
+use opentelemetry::runtime::TokioCurrentThread;
+use state::AppState;
 use tokio::sync::{RwLock, Mutex};
-
-use crate::errors::StartError;
 
 type RustlinkAlias = String;
 
 const LINK_FILENAME: &str = "links.json";
 
 
-async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::StartError> {
+pub fn build_app(state: actix_web::web::Data<AppState>) -> App<
+            impl ServiceFactory<
+                ServiceRequest,
+                Response = ServiceResponse<impl MessageBody>,
+                Config = (),
+                InitError = (),
+                Error = Error
+            >,
+        > {
+            App::new()
+            .app_data(state)
+            .service(
+                web::scope("/api/v1")
+                    .service(health::check)
+                    .service(api::create_rustlink)
+                    .service(api::delete_rustlink)
+                    .service(api::get_rustlinks),
+            )
+            .service(redirect::redirect)
+        }
+
+async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
+    #[cfg(feature = "tracing")]
+    let _ = opentelemetry_otlp::new_pipeline()
+    .tracing()
+    .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+    .install_batch(opentelemetry::runtime::TokioCurrentThread)?;
+
+    #[cfg(feature = "metrics")]
+    let _ = opentelemetry_otlp::new_pipeline()
+    .metrics(TokioCurrentThread)
+    .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+    .build()?;
+
     // TODO: handle connection error here without panic'ing?
     let etcd_client = Client::connect(ClientConfig::new(
         cli.global.etcd_endpoints
@@ -46,18 +85,13 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::StartError> {
     };
     let links_filepath = data_dir.join(LINK_FILENAME);
     // TODO: create necessary dirs recursively
-    let links_file: Option<File> = match OpenOptions::new()
-        .write(true)
-        .read(true)
-        .create(true)
-        .open(links_filepath.clone()) {
+    let links_file: Option<File> = match OpenOptions::new().write(true).read(true).create(true).open(links_filepath.clone()) {
         Ok(f) => Some(f),
         Err(n) => {
             eprint!("Error opening/creating links file at [{:?}]: {:?}", links_filepath, n);
             None
         }
     };
-
     let state = web::Data::new(state::AppState {
         rustlinks: Arc::new(RwLock::new(HashMap::new())),
         etcd_client: Arc::new(etcd_client),
@@ -70,16 +104,8 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::StartError> {
         sleep: Arc::new(Mutex::new(None))
     });
     let server_future = HttpServer::new(move || {
-        App::new()
-            .app_data(state.clone())
-            .service(
-                web::scope("/api/v1")
-                    .service(health::check)
-                    .service(api::create_rustlink)
-                    .service(api::delete_rustlink)
-                    .service(api::get_rustlinks),
-            )
-            .service(redirect::redirect)
+        let app = build_app(state.clone()).clone();
+        app.as_mut()
     })
     .bind(("127.0.0.1", 8080))?
     .run();
@@ -98,13 +124,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::StartError> {
         },
         _ = server_result => {
             println!("server stopped");
-            match worker_stop.stop().await {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    eprintln!("failed to stop worker: {:?}", e);
-                    Err(StartError::EtcdError(e))
-                }
-            }
+            worker_stop.stop().await
         }
     }
 }
@@ -113,7 +133,7 @@ async fn configure(cli: cli::RustlinksOpts) -> Result<(), ()> {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), errors::StartError> {
+async fn main() -> Result<(), errors::RustlinksError> {
     let cli = cli::RustlinksOpts::parse();
 
     let result = match cli.command {

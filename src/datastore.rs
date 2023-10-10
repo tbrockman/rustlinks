@@ -11,6 +11,7 @@ use etcd_rs::{
 use tokio::{sync::Mutex, time::sleep};
 
 use crate::{
+    errors::RustlinksError,
     state::{AppState, SerdeAppState},
     util::{self, NAMESPACE},
 };
@@ -155,14 +156,17 @@ impl Worker {
         Ok(())
     }
 
-    pub async fn stop(&self) -> Result<(), etcd_rs::Error> {
+    pub async fn stop(&self) -> Result<(), RustlinksError> {
         // Cancel any pending sleeps
         if let Some(sleep) = self.sleep.lock().await.take() {
             drop(sleep);
         }
 
         if let Some(canceler) = self.cancel.lock().await.take() {
-            canceler.cancel().await.unwrap()
+            canceler
+                .cancel()
+                .await
+                .or_else(|e| Err(RustlinksError::EtcdError(e)))?
         } else {
             println!("nothing to cancel");
         }
