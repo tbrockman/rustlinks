@@ -29,21 +29,84 @@ pub async fn redirect(
 }
 
 /// Take any params we received, and template them into the URL.
-/// Assumes that the params we receive are already % decoded.
+/// Assumes that the params we receive are % decoded.
 pub fn template_params(template: &str, remaining: Option<&str>) -> String {
-    let mut params: Vec<String> = Vec::new();
-    let matches = template.matches("{}").count();
-    let mut split = remaining.unwrap_or("").split(" ");
+    let mut hat_replacement_indices: Vec<usize> = Vec::new();
+    let mut parentheses_indices: Vec<usize> = Vec::new();
+    let mut stack: Vec<usize> = Vec::new();
+    let mut result: Vec<String> = Vec::new();
 
-    while matches > 0 && params.len() < matches - 1 {
-        let param = split.next();
-        params.push(encode(param.unwrap_or("")).to_string());
+    let mut i = 0;
+
+    for char in template.chars() {
+        match char {
+            '{' => {
+                if stack.len() == 0 {
+                    parentheses_indices.push(i)
+                }
+                stack.push(i)
+            }
+            '}' => {
+                // If '}' closes all open parentheses
+                if let Some(_) = stack.pop() && stack.len() == 0 {
+                    parentheses_indices.push(i)
+                }
+            }
+            '^' => {
+                // If '^' contained within {}
+                if stack.len() > 0 {
+                    hat_replacement_indices.push(i)
+                }
+            }
+            _ => {}
+        };
+
+        result.push(char.to_string());
+        i = i + 1;
+    }
+
+    println!("replace hats: {:?}", hat_replacement_indices);
+    println!("replace parens: {:?}", parentheses_indices);
+    println!("string vec before replacement: {:?}", result);
+
+    let mut split = remaining.unwrap_or("").split(" ");
+    let mut iter = hat_replacement_indices.iter();
+
+    while let Some(indice) = iter.next() {
+        println!("replacing indice: {:?}", indice);
+
+        match split.next() {
+            // If we have a param to replace, replace
+            Some(param) => {
+                result[*indice] = encode(param).to_string();
+            }
+            // Otherwise, replace with empty string
+            None => {
+                result[*indice] = "".to_string();
+            }
+        };
     }
 
     if let Some(remainder) = split.remainder() {
-        params.push(encode(remainder).to_string());
+        if remainder.len() > 0 {
+            result.push(encode(format!(" {remainder}").as_str()).to_string());
+        }
     }
-    template.format(&params)
+
+    iter = parentheses_indices.iter();
+
+    // process parentheses
+    while let Some(indice) = iter.next() {
+        // check whether there is a replacement for the corresponding '^'
+
+        // if not, set everything inbetween parentheses to ""
+
+        println!("removing parans at indice: {:?}", indice);
+        result[*indice] = "".to_string();
+    }
+
+    // build string
+    result.join("")
 }
 
 #[cfg(test)]
@@ -60,7 +123,7 @@ mod unit_tests {
 
     #[test]
     fn it_templates_one_item() {
-        let url = "https://google.com/search?q={}";
+        let url = "https://google.com/search?q={^}";
         let params = Some("rust");
         let templated = template_params(url, params);
         assert_eq!(templated, "https://google.com/search?q=rust");
@@ -68,7 +131,7 @@ mod unit_tests {
 
     #[test]
     fn it_templates_string_with_multiple_spaces_url_encoded() {
-        let url = "https://google.com/search?q={}";
+        let url = "https://google.com/search?q={^}";
         let params = Some("rust is cool");
         let templated = template_params(url, params);
         assert_eq!(templated, "https://google.com/search?q=rust%20is%20cool");
@@ -76,7 +139,7 @@ mod unit_tests {
 
     #[test]
     fn it_templates_string_with_multiple_replacements() {
-        let url = "https://google.com/search?q={}&b={}";
+        let url = "https://google.com/search?q={^}&b={^}";
         let params = Some("rust is cool");
         let templated = template_params(url, params);
         assert_eq!(templated, "https://google.com/search?q=rust&b=is%20cool");
@@ -84,13 +147,32 @@ mod unit_tests {
 
     #[test]
     fn it_templates_string_with_multiple_replacements_with_fewer_params() {
-        let url = "https://google.com/search?q={}&a={}&b={}&c={}&d={}";
+        let url = "https://google.com/search?q={^}&a={^}&b={^}&c={^}&d={^}";
         let params = Some("rust is cool");
         let templated = template_params(url, params);
         assert_eq!(
             templated,
             "https://google.com/search?q=rust&a=is&b=cool&c=&d="
         );
+    }
+
+    #[test]
+    fn it_only_replaces_parentheses_if_param_is_available() {
+        let url = "https://google.com/search?q={shouldbehere%20^}&a={shouldnotbehere%20^}";
+        let params = Some("rust");
+        let templated = template_params(url, params);
+        assert_eq!(
+            templated,
+            "https://google.com/search?q=shouldbehere%20rust&a="
+        );
+    }
+
+    #[test]
+    fn it_only_replaces_parentheses_if_param_is_available_test_encoding() {
+        let url = "https://google.com{/search?q=^&b=test}";
+        let params = Some("rust");
+        let templated = template_params(url, params);
+        assert_eq!(templated, "https://google.com/search?q=rust&b=test");
     }
 }
 
