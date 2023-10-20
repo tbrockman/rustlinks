@@ -228,6 +228,14 @@ mod unit_tests {
         let templated = render_url_template(url, params);
         assert_eq!(templated, "https://google.com/search?q=rust&b=is%20cool");
     }
+
+    #[test]
+    fn it_handles_one_whitespace_as_no_input() {
+        let url = "https://google.com{/search?q=^&b=^}";
+        let params = Some(" ");
+        let templated = render_url_template(url, params);
+        assert_eq!(templated, "https://google.com");
+    }
 }
 
 #[cfg(test)]

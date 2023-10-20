@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
+use serde::{Deserialize, Serialize};
 
 /// A simple application for managing short links
 /// For debug logs, set RUST_LOG=debug
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Serialize, Deserialize)]
 #[command(author, version, about, long_about = None)]
 pub struct RustlinksOpts {
     #[command(flatten)]
@@ -20,7 +21,7 @@ impl RustlinksOpts {
     }
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Serialize, Deserialize)]
 pub struct GlobalOpts {
     // /// Optional path to a .toml config file (precendence = args > env vars >
     // /// config file)
@@ -63,10 +64,10 @@ pub struct GlobalOpts {
 
     /// OpenTelemetry collector endpoint
     #[arg(long, default_value = "http://127.0.0.1:4317")]
-    pub(crate) otel_collector_endpoint: String,
+    pub(crate) otel_collector_endpoint: Option<String>,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Serialize, Deserialize)]
 pub enum Commands {
     /// Start the server
     Start {
@@ -86,4 +87,31 @@ pub enum Commands {
     /// generation, role provisioning, and other setup required for
     /// the application to run successfully
     Configure {},
+}
+
+#[cfg(test)]
+mod unit_tests {
+    #[test]
+    fn test_serialization() {
+        use super::*;
+        let opts = RustlinksOpts {
+            global: GlobalOpts {
+                etcd_endpoints: Some("http://".to_string()),
+                etcd_ca_cert: None,
+                etcd_username: None,
+                etcd_password: None,
+                primary: true,
+                cert_file: None,
+                key_file: None,
+                otel_collector_endpoint: Some("http://".to_string()),
+            },
+            command: Commands::Start {
+                hostname: "".to_string(),
+                port: 0,
+                data_dir: PathBuf::from(""),
+            },
+        };
+        let serialized = serde_json::to_string(&opts).unwrap();
+        println!("{}", serialized);
+    }
 }
