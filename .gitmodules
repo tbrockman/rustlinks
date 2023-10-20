@@ -1,0 +1,3 @@
+[submodule "src/etcd-rs"]
+	path = src/etcd-rs
+	url = https://github.com/tbrockman/etcd-rs
