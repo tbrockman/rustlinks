@@ -72,7 +72,7 @@ pub enum Commands {
     /// Start the server
     Start {
         /// Hostname or IP address to bind to
-        #[arg(long, default_value = "127.0.0.1")]
+        #[arg(long, default_value = "0.0.0.0")]
         hostname: String,
 
         /// Port to bind to

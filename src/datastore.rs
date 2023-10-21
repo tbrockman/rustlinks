@@ -63,7 +63,7 @@ impl Worker {
         match self.persist().await {
             Ok(_) => {}
             Err(e) => {
-                eprintln!("Failed to state to disk: {:?}", e);
+                eprintln!("Failed to persist state to disk: {:?}", e);
             }
         };
 
@@ -189,7 +189,7 @@ impl Worker {
     async fn persist(&self) -> Result<(), std::io::Error> {
         let serde_state = self.state.from().await;
 
-        if let Some(mut f) = self.state.links_file.write().await.take() {
+        if let Some(f) = self.state.links_file.write().await.as_mut() {
             let string = serde_json::to_string(&serde_state)?;
             f.set_len(0)?;
             f.rewind()?;

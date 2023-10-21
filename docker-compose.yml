@@ -46,6 +46,7 @@ services:
       # - 55679:55679 # zpages extension
     depends_on:
       - clickhouse
+      - etcd0
 
   clickhouse:
     image: clickhouse/clickhouse-server
