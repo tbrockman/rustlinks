@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use actix_web::{get, web, Either, HttpResponse};
-use opentelemetry::{global, trace::Tracer};
+use opentelemetry::{
+    global,
+    trace::{get_active_span, Tracer},
+};
 use urlencoding::encode;
 
 use crate::state;
@@ -20,24 +23,35 @@ pub async fn redirect(
             let params = split.remainder();
             let rustlinks = data.rustlinks.read().await;
 
-            match rustlinks.get(alias) {
+            get_active_span(|span| match rustlinks.get(alias) {
                 Some(rustlink) => {
-                    let url = render_url_template(&rustlink.url, params);
-                    let meter = global::meter("redirect");
-                    let builder = meter.u64_counter("redirects");
+                    let url = render_url_template(&rustlink.url, params.clone());
+                    // Increment counter for this alias
+                    let meter = global::meter("");
+                    let builder = meter.u64_counter("rustlinks.redirects");
                     let counter = builder.init();
                     counter.add(
                         1,
-                        [
-                            opentelemetry::KeyValue::new("alias", alias.to_string()),
-                            opentelemetry::KeyValue::new("url", url.clone()),
-                        ]
+                        [opentelemetry::KeyValue::new(
+                            "rustlinks.alias",
+                            alias.to_string(),
+                        )]
                         .as_ref(),
                     );
+                    // Attach alias metadata to span
+                    span.set_attribute(opentelemetry::KeyValue::new(
+                        "rustlinks.alias",
+                        alias.to_string(),
+                    ));
+                    span.set_attribute(opentelemetry::KeyValue::new("rustlinks.url", url.clone()));
+                    span.set_attribute(opentelemetry::KeyValue::new(
+                        "rustlinks.params",
+                        params.unwrap_or("").to_string(),
+                    ));
                     Either::Left(web::Redirect::to(url).permanent())
                 }
                 None => Either::Right(HttpResponse::NotFound().finish()),
-            }
+            })
         })
         .await
 }
@@ -288,6 +302,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
+                    primary: true,
                 }))
                 .service(redirect),
         )
@@ -323,6 +338,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
+                    primary: true,
                 }))
                 .service(redirect),
         )
@@ -358,6 +374,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
+                    primary: true,
                 }))
                 .service(redirect),
         )
@@ -393,6 +410,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
+                    primary: true,
                 }))
                 .service(redirect),
         )
@@ -428,6 +446,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
+                    primary: true,
                 }))
                 .service(redirect),
         )
@@ -463,6 +482,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
+                    primary: true,
                 }))
                 .service(redirect),
         )

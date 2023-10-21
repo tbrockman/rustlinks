@@ -99,6 +99,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         etcd_client: Arc::new(etcd_client),
         revision: Arc::new(RwLock::new(0)),
         links_file: Arc::new(RwLock::new(links_file)),
+        primary: cli.global.primary,
     });
     let worker = Box::new(Worker {
         state: state.clone(),

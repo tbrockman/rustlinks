@@ -51,7 +51,10 @@ pub struct GlobalOpts {
 
     /// Flag to indicate whether server should run as primary (clients are
     /// secondary)
-    #[arg(long, default_value_t = true)]
+    /// Primary server will be responsible for writing to etcd
+    /// Secondary servers are read-only, and will forward unfulfillable requests
+    /// to the primary as a fallback.
+    #[arg(long, default_value_t = false)]
     pub(crate) primary: bool,
 
     /// Certificate file to be used by the server for TLS
@@ -85,8 +88,21 @@ pub enum Commands {
     },
     /// Configure the application, automatically performs certificate
     /// generation, role provisioning, and other setup required for
-    /// the application to run successfully
-    Configure {},
+    /// the application to run
+    Configure {
+        /// etcd read-only user to create (if it doesn't already exist)
+        #[arg(long, default_value = "rustlinks_ro")]
+        etcd_readonly_user: String,
+
+        /// etcd read-only user password
+        #[arg(long, default_value = "default")]
+        etcd_readonly_password: String,
+
+        /// Use `mkcert` to create a local CA to generate certificates
+        /// to provide TLS during navigation
+        #[arg(long, default_value_t = true)]
+        use_mkcert: bool,
+    },
 }
 
 #[cfg(test)]
