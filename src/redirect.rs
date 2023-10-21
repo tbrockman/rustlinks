@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use actix_web::{get, web, Either, HttpResponse};
-use dyn_fmt::AsStrFormatExt;
+use opentelemetry::{global, trace::Tracer};
 use urlencoding::encode;
 
 use crate::state;
@@ -11,18 +11,35 @@ pub async fn redirect(
     data: web::Data<state::AppState>,
     path: web::Path<String>,
 ) -> Either<web::Redirect, HttpResponse> {
-    let full = path.into_inner();
-    let mut split = full.split(" ");
-    let alias = split.next().unwrap();
-    let params = split.remainder();
-    let guard = data.rustlinks.read().await;
-    match guard.get(alias) {
-        Some(rustlink) => {
-            let url = render_url_template(&rustlink.url, params);
-            Either::Left(web::Redirect::to(url).permanent())
-        }
-        None => Either::Right(HttpResponse::NotFound().finish()),
-    }
+    let tracer = global::tracer("redirect");
+    tracer
+        .in_span("render-url-template-and-redirect", async move |_| {
+            let full = path.into_inner();
+            let mut split = full.split(" ");
+            let alias = split.next().unwrap();
+            let params = split.remainder();
+            let rustlinks = data.rustlinks.read().await;
+
+            match rustlinks.get(alias) {
+                Some(rustlink) => {
+                    let url = render_url_template(&rustlink.url, params);
+                    let meter = global::meter("redirect");
+                    let builder = meter.u64_counter("redirects");
+                    let counter = builder.init();
+                    counter.add(
+                        1,
+                        [
+                            opentelemetry::KeyValue::new("alias", alias.to_string()),
+                            opentelemetry::KeyValue::new("url", url.clone()),
+                        ]
+                        .as_ref(),
+                    );
+                    Either::Left(web::Redirect::to(url).permanent())
+                }
+                None => Either::Right(HttpResponse::NotFound().finish()),
+            }
+        })
+        .await
 }
 
 /// Take any params we received, and template them into the URL.

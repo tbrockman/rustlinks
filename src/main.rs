@@ -3,53 +3,53 @@
 #![feature(async_closure)]
 
 pub mod api;
-pub mod datastore;
-pub mod rustlink;
-pub mod util;
-pub mod health;
 pub mod cli;
+pub mod datastore;
 pub mod errors;
-pub mod state;
+pub mod health;
 pub mod redirect;
+pub mod rustlink;
+pub mod state;
+pub mod util;
 
 use std::{
-    collections::HashMap,
-    sync::Arc, fs::{File, OpenOptions},
+    fs::{File, OpenOptions},
+    sync::Arc,
 };
 
 use actix_web::{web, App, HttpServer};
-use actix_web_opentelemetry::RequestTracing;
 use actix_web_opentelemetry::RequestMetrics;
+use actix_web_opentelemetry::RequestTracing;
 use datastore::Worker;
 use etcd_rs::{Client, ClientConfig, Endpoint};
-use opentelemetry::runtime::TokioCurrentThread;
-use tokio::sync::{RwLock, Mutex};
+use opentelemetry::{global, runtime::TokioCurrentThread};
+use tokio::sync::{Mutex, RwLock};
 
 type RustlinkAlias = String;
 
 const LINK_FILENAME: &str = "links.json";
 
 async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
-
     // Enable tracing
     // TODO: make configurable
 
     let _ = opentelemetry_otlp::new_pipeline()
-    .tracing()
-    .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-    .install_batch(TokioCurrentThread)?;
+        .tracing()
+        .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+        .install_batch(TokioCurrentThread)?;
 
     // Enable metrics
     // TODO: make configurable
 
     let _ = opentelemetry_otlp::new_pipeline()
-    .metrics(TokioCurrentThread)
-    .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-    .build()?;
+        .metrics(TokioCurrentThread)
+        .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+        .build()?;
 
     // TODO: handle connection error here without panic'ing?
     let etcd_client = Client::connect(ClientConfig::new(
-        cli.global.etcd_endpoints
+        cli.global
+            .etcd_endpoints
             .unwrap()
             .split(',')
             .map(|s| s.into())
@@ -58,20 +58,44 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
     .await
     .unwrap();
 
-    let cli::Commands::Start{hostname, port, data_dir}: cli::Commands = cli.command else {
-        unreachable!();   
+    let cli::Commands::Start {
+        hostname,
+        port,
+        data_dir,
+    }: cli::Commands = cli.command
+    else {
+        unreachable!();
     };
+
     let links_filepath = data_dir.join(LINK_FILENAME);
-    // TODO: create necessary dirs recursively
-    let links_file: Option<File> = match OpenOptions::new().write(true).read(true).create(true).open(links_filepath.clone()) {
+
+    match links_filepath.parent() {
+        Some(parent) => {
+            println!("found parent: {:?}", parent);
+
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+        _ => {}
+    }
+    let links_file: Option<File> = match OpenOptions::new()
+        .write(true)
+        .read(true)
+        .create(true)
+        .open(links_filepath.clone())
+    {
         Ok(f) => Some(f),
         Err(n) => {
-            eprint!("Error opening/creating links file at [{:?}]: {:?}", links_filepath, n);
+            eprint!(
+                "Error opening/creating links file at [{:?}]: {:?}",
+                links_filepath, n
+            );
             None
         }
     };
     let state = web::Data::new(state::AppState {
-        rustlinks: Arc::new(RwLock::new(HashMap::new())),
+        rustlinks: Arc::new(RwLock::new(Default::default())),
         etcd_client: Arc::new(etcd_client),
         revision: Arc::new(RwLock::new(0)),
         links_file: Arc::new(RwLock::new(links_file)),
@@ -79,7 +103,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
     let worker = Box::new(Worker {
         state: state.clone(),
         cancel: Arc::new(Mutex::new(None)),
-        sleep: Arc::new(Mutex::new(None))
+        sleep: Arc::new(Mutex::new(None)),
     });
     let server_future = HttpServer::new(move || {
         App::new()
@@ -95,7 +119,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
             .wrap(RequestMetrics::default())
             .wrap(RequestTracing::new())
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind((hostname, port))?
     .run();
     let worker_start = worker.clone();
     let worker_stop = worker.clone();
@@ -103,7 +127,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
     let server_result = tokio::spawn(server_future);
     let etcd_result = tokio::spawn(async move { worker_start.start().await });
 
-    tokio::select! {
+    let exit_result = tokio::select! {
         _ = etcd_result => {
             println!("etcd worker stopped");
             // TODO: handle error and attempt to recover
@@ -114,7 +138,10 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
             println!("server stopped");
             worker_stop.stop().await
         }
-    }
+    };
+
+    global::shutdown_tracer_provider();
+    exit_result
 }
 async fn configure(cli: cli::RustlinksOpts) -> Result<(), ()> {
     Ok(())

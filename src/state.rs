@@ -3,6 +3,7 @@ use std::fs::File;
 use std::sync::Arc;
 
 use etcd_rs::Client;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use super::RustlinkAlias;
@@ -15,7 +16,7 @@ pub struct AppState {
     pub(crate) links_file: Arc<RwLock<Option<File>>>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SerdeAppState {
     pub(crate) rustlinks: HashMap<RustlinkAlias, rustlink::Rustlink>,
     pub(crate) revision: i64,

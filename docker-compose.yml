@@ -1,7 +1,17 @@
+# etcd
+#
 # See: https://etcd.io/docs/v3.5/op-guide/configuration/
 # Follow: https://etcd.io/docs/v3.5/quickstart/
 
-version: '3.1'
+# ClickHouse + Grafana
+#
+# See: https://github.com/ClickHouse/examples/tree/main/docker-compose-recipes/recipes/ch-and-grafana
+
+# Otel Collector
+#
+# See: ? ? ?
+
+version: "3.8"
 
 services:
   etcd0:
@@ -25,7 +35,7 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib
     volumes:
-      - ./otel/config.yaml:/etc/otelcol-contrib/config.yaml
+      - ./config/otel/config.yaml:/etc/otelcol-contrib/config.yaml
     ports:
       # - 1888:1888 # pprof extension
       - 8888:8888 # Prometheus metrics exposed by the collector
@@ -34,3 +44,34 @@ services:
       - 4317:4317 # OTLP gRPC receiver
       - 4318:4318 # OTLP http receiver
       # - 55679:55679 # zpages extension
+    depends_on:
+      - clickhouse
+
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    user: "101:101"
+    container_name: clickhouse
+    hostname: clickhouse
+    volumes:
+      - ./config/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml
+      - ./config/clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    hostname: grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=password
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+    volumes:
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    depends_on:
+      - clickhouse

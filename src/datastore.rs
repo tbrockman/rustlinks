@@ -40,20 +40,33 @@ impl Worker {
                 if result.is_err() {
                     eprintln!("Failed to read bytes from links file: {:?}", result.err())
                 } else {
-                    let de: Result<SerdeAppState, serde_json::Error> = serde_json::from_slice(&buf);
-                    match de {
-                        Ok(disk_state) => {
-                            let mut rustlinks = self.state.rustlinks.write().await;
-                            rustlinks.extend(disk_state.rustlinks);
-                            *self.state.revision.write().await = disk_state.revision;
-                        }
-                        Err(e) => {
-                            eprintln!("Failed to deserialize links file: {:?}", e);
+                    if buf.len() > 0 {
+                        let de: Result<SerdeAppState, serde_json::Error> =
+                            serde_json::from_slice(&buf);
+                        match de {
+                            Ok(disk_state) => {
+                                let mut rustlinks: tokio::sync::RwLockWriteGuard<
+                                    '_,
+                                    std::collections::HashMap<String, crate::rustlink::Rustlink>,
+                                > = self.state.rustlinks.write().await;
+                                rustlinks.extend(disk_state.rustlinks);
+                                *self.state.revision.write().await = disk_state.revision;
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to deserialize links file: {:?}", e);
+                            }
                         }
                     }
                 }
             }
         }
+        match self.persist().await {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Failed to state to disk: {:?}", e);
+            }
+        };
+
         let mut stream: WatchStream;
         let mut backoff = 1;
 
@@ -176,17 +189,16 @@ impl Worker {
     async fn persist(&self) -> Result<(), std::io::Error> {
         let serde_state = self.state.from().await;
 
-        match self.state.links_file.write().await.as_ref() {
-            Some(mut f) => {
-                let string = serde_json::to_string(&serde_state).unwrap_or("{}".to_string());
-                f.set_len(0)?;
-                f.rewind()?;
-                f.write_all(string.as_bytes())
-            }
-            None => Err(std::io::Error::new(
+        if let Some(mut f) = self.state.links_file.write().await.take() {
+            let string = serde_json::to_string(&serde_state)?;
+            f.set_len(0)?;
+            f.rewind()?;
+            f.write_all(string.as_bytes())
+        } else {
+            Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "No links file to write to",
-            )),
+            ))
         }
     }
 
