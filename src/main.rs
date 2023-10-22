@@ -4,14 +4,15 @@
 
 pub mod api;
 pub mod cli;
-pub mod datastore;
 pub mod errors;
 pub mod health;
+pub mod oauth;
 pub mod redirect;
 pub mod rustlink;
 pub mod state;
 pub mod tls;
 pub mod util;
+pub mod worker;
 
 use std::{
     fs::{File, OpenOptions},
@@ -21,11 +22,11 @@ use std::{
 use actix_web::{dev::Server, web, App, HttpServer};
 use actix_web_opentelemetry::RequestMetrics;
 use actix_web_opentelemetry::RequestTracing;
-use datastore::Worker;
 use errors::RustlinksError;
 use etcd_rs::{Client, ClientConfig, Endpoint};
 use opentelemetry::{global, runtime::TokioCurrentThread};
 use tokio::sync::{Mutex, RwLock};
+use worker::Worker;
 
 type RustlinkAlias = String;
 
@@ -123,6 +124,9 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
                     .service(api::get_rustlinks),
             )
             .service(redirect::redirect)
+            .service(
+                web::resource(redirect_endpoint.as_str()).route(web::get().to(oauth::callback)),
+            )
             .wrap(RequestMetrics::default())
             .wrap(RequestTracing::new())
     });

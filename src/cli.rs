@@ -106,8 +106,8 @@ pub enum Commands {
         #[arg(long, default_value = None)]
         oidc_client_id: Option<String>,
 
-        #[arg(long, default_value = "/oauth2/callback")]
-        redirect_endpoint: Option<String>,
+        #[arg(long, default_value = "/api/v1/oauth2/callback")]
+        redirect_endpoint: String,
     },
     /// Setup the application, automatically performs certificate
     /// generation, etcd role+user provisioning, and other setup required for
@@ -150,11 +150,6 @@ pub enum Commands {
         /// etcd read-write user password
         #[arg(long, default_value = "default")]
         etcd_read_write_password: String,
-
-        /// Use `mkcert` to create a local CA to generate certificates
-        /// to provide TLS
-        #[arg(long, default_value_t = true)]
-        install_ca: bool,
     },
 }
 
@@ -180,7 +175,7 @@ mod unit_tests {
                 key: None,
                 oidc_well_known_config_url: None,
                 oidc_client_id: None,
-                redirect_endpoint: None,
+                redirect_endpoint: "".to_string(),
             },
         };
         let serialized = serde_json::to_string(&opts).unwrap();
