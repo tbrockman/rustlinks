@@ -3,14 +3,14 @@ use etcd_rs::{KeyValueOp, PutRequest};
 
 use crate::{rustlink::Rustlink, state::AppState, util};
 
-#[get("/links")]
+#[get("/")]
 pub async fn get_rustlinks(data: web::Data<AppState>) -> impl Responder {
     // TODO: cursor-based pagination
     let rustlinks = data.rustlinks.read().await;
     return HttpResponse::Ok().json(rustlinks.values().collect::<Vec<&Rustlink>>());
 }
 
-#[put("/links/{alias}")]
+#[put("/{alias}")]
 pub async fn create_rustlink(
     data: web::Data<AppState>,
     path: web::Path<String>,
@@ -33,7 +33,7 @@ pub async fn create_rustlink(
     }
 }
 
-#[delete("/links/{alias}")]
+#[delete("/{alias}")]
 pub async fn delete_rustlink(data: web::Data<AppState>, path: web::Path<String>) -> impl Responder {
     let alias = path.into_inner();
     match data.etcd_client.delete(alias).await {

@@ -10,7 +10,7 @@ a work-in-progress Rust implementation of [golinks](https://golinks.github.io/go
 - [x] traces
 - [x] tls
   - [ ] sni
-- [ ] sso
+- [ ] oauth
 
 ## development
 
@@ -41,8 +41,8 @@ install [mkcert](https://github.com/FiloSottile/mkcert#installation) (if you don
 
 ```shell
 mkcert -install
-mkcert -key-file key.pem -cert-file cert.pem rs
-cargo run -- start --cert cert.pem --key key.pem
+mkcert -key-file key.pem -cert-file cert.pem rs # [...and any other hostnames]
+cargo run -- start --cert cert.pem --key key.pem --port 443
 ```
 
 ## architecture
@@ -51,13 +51,14 @@ cargo run -- start --cert cert.pem --key key.pem
 - a local CA to provide valid certificates for the above
 - an `actix-web`-based Rust application, maintaining an in-memory set of links and shortened aliases (persisted to disk on modifications) by watching a namespace in `etcd`
 - `open-telemetry` OTLP formatted metrics and traces, for analytics and observability
-- `clickhouse` for storage of metrics and traces
-- `grafana` for visualization of metrics and traces
+- `clickhouse` for storage of metrics + traces
+- `grafana` for visualization of metrics + traces
 
 ## todo
 
-- [ ] a React UI for creating, searching, and deleting link aliases
-- [ ] OAuth + SSO integration
+- [ ] CLI, unit, and integration tests
+- [ ] a React UI for CRUD'ing link aliases
+- [ ] OAuth
 - [ ] limit link storage (to not break `etcd` or unnecessarily store links which likely won't be used)
 - [ ] distinguish readers vs. writers
   - [ ] writers manage the `rustlinks` `etcd` namespace (e.g. adds/removes links)

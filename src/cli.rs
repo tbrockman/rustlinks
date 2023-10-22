@@ -107,7 +107,7 @@ pub enum Commands {
         oidc_client_id: Option<String>,
 
         #[arg(long, default_value = "/api/v1/oauth2/callback")]
-        redirect_endpoint: String,
+        oauth_redirect_endpoint: String,
     },
     /// Setup the application, automatically performs certificate
     /// generation, etcd role+user provisioning, and other setup required for
@@ -175,7 +175,7 @@ mod unit_tests {
                 key: None,
                 oidc_well_known_config_url: None,
                 oidc_client_id: None,
-                redirect_endpoint: "".to_string(),
+                oauth_redirect_endpoint: "".to_string(),
             },
         };
         let serialized = serde_json::to_string(&opts).unwrap();

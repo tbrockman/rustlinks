@@ -15,6 +15,7 @@ pub struct AppState {
     pub(crate) etcd_client: Arc<Client>,
     pub(crate) links_file: Arc<RwLock<Option<File>>>,
     pub(crate) read_only: bool,
+    pub(crate) oauth_redirect_endpoint: Arc<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

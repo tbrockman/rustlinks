@@ -5,8 +5,6 @@
 pub mod api;
 pub mod cli;
 pub mod errors;
-pub mod health;
-pub mod oauth;
 pub mod redirect;
 pub mod rustlink;
 pub mod state;
@@ -69,7 +67,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         key,
         oidc_well_known_config_url,
         oidc_client_id,
-        redirect_endpoint,
+        oauth_redirect_endpoint,
     }: cli::Commands = cli.command
     else {
         unreachable!();
@@ -106,6 +104,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         revision: Arc::new(RwLock::new(0)),
         links_file: Arc::new(RwLock::new(links_file)),
         read_only: cli.global.read_only,
+        oauth_redirect_endpoint: Arc::new(oauth_redirect_endpoint.clone()),
     });
     let worker = Box::new(Worker {
         state: state.clone(),
@@ -117,16 +116,22 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         App::new()
             .app_data(state.clone())
             .service(
-                web::scope("/api/v1")
-                    .service(health::check)
-                    .service(api::create_rustlink)
-                    .service(api::delete_rustlink)
-                    .service(api::get_rustlinks),
+                web::scope("/api/v1/")
+                    .service(web::scope("/health").service(api::v1::health::check))
+                    .service(
+                        web::scope("/links")
+                            .service(api::v1::links::create_rustlink)
+                            .service(api::v1::links::delete_rustlink)
+                            .service(api::v1::links::get_rustlinks),
+                    )
+                    .service(
+                        web::scope("/oauth").service(
+                            web::resource(oauth_redirect_endpoint.as_str())
+                                .route(web::get().to(api::v1::oauth::callback)),
+                        ),
+                    ),
             )
             .service(redirect::redirect)
-            .service(
-                web::resource(redirect_endpoint.as_str()).route(web::get().to(oauth::callback)),
-            )
             .wrap(RequestMetrics::default())
             .wrap(RequestTracing::new())
     });
