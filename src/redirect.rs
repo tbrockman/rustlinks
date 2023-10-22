@@ -302,7 +302,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
-                    primary: true,
+                    read_only: true,
                 }))
                 .service(redirect),
         )
@@ -338,7 +338,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
-                    primary: true,
+                    read_only: true,
                 }))
                 .service(redirect),
         )
@@ -374,7 +374,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
-                    primary: true,
+                    read_only: true,
                 }))
                 .service(redirect),
         )
@@ -410,7 +410,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
-                    primary: true,
+                    read_only: true,
                 }))
                 .service(redirect),
         )
@@ -446,7 +446,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
-                    primary: true,
+                    read_only: true,
                 }))
                 .service(redirect),
         )
@@ -482,7 +482,7 @@ mod integration_tests {
                     etcd_client: Arc::new(client),
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
-                    primary: true,
+                    read_only: true,
                 }))
                 .service(redirect),
         )

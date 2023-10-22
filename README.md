@@ -37,3 +37,6 @@ cargo run -- start
 - [ ] a React UI for creating, searching, and deleting link aliases
 - [ ] OAuth + SSO integration
 - [ ] limit link storage (to not break `etcd` or unnecessarily store links which likely won't be used)
+- [ ] distinguish readers vs. writers
+  - [ ] writers manage the `rustlinks` `etcd` namespace (e.g. adds/removes links)
+  - [ ] readers watch the `rustlinks` `etcd` namespace for changes

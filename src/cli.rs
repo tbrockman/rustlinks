@@ -41,21 +41,20 @@ pub struct GlobalOpts {
     #[arg(long)]
     pub(crate) etcd_ca_cert: Option<PathBuf>,
 
-    /// Username to use for etcd authentication
-    #[arg(long, default_value = "rustlinks")]
+    /// Username to use for etcd read-write account
+    #[arg(long, default_value = "rustlinks_rw")]
     pub(crate) etcd_username: Option<String>,
 
-    /// Password to use for etcd authentication
-    #[arg(long, default_value = "admin")]
+    /// Password to use for etcd read-write account
+    #[arg(long, default_value = "default")]
     pub(crate) etcd_password: Option<String>,
 
-    /// Flag to indicate whether server should run as primary (clients are
-    /// secondary)
-    /// Primary server will be responsible for writing to etcd
-    /// Secondary servers are read-only, and will forward unfulfillable requests
-    /// to the primary as a fallback.
+    /// Flag to indicate whether server should run as read_only (alternative is
+    /// read_write). Read-only servers can't write anything to `etcd` and may
+    /// retain a smaller set of links in-memory. Read-write servers can write
+    /// to `etcd`, and will retain the full set of links in-memory
     #[arg(long, default_value_t = false)]
-    pub(crate) primary: bool,
+    pub(crate) read_only: bool,
 
     /// Certificate file to be used by the server for TLS
     #[arg(long)]
@@ -75,7 +74,7 @@ pub enum Commands {
     /// Start the server
     Start {
         /// Hostname or IP address to bind to
-        #[arg(long, default_value = "0.0.0.0")]
+        #[arg(long, default_value = "rs")]
         hostname: String,
 
         /// Port to bind to
@@ -86,22 +85,52 @@ pub enum Commands {
         #[arg(long, default_value = ".rustlinks/")]
         data_dir: PathBuf,
     },
-    /// Configure the application, automatically performs certificate
-    /// generation, role provisioning, and other setup required for
-    /// the application to run
-    Configure {
+    /// Setup the application, automatically performs certificate
+    /// generation, etcd role+user provisioning, and other setup required for
+    /// the application to run in a typical production setup.
+    Init {
+        /// IP address of the local server
+        /// Should be unique localhost IP address to guarantee ports :443 and
+        /// :80 are available.
+        #[arg(long, default_value = "127.13.37.1")]
+        ip_address: String,
+
+        /// Hostname to be associated with the local IP address in /etc/hosts
+        #[arg(long, default_value = "rs")]
+        hostname: String,
+
+        /// etcd admin account with ability to provision users and roles
+        /// This will be used to create read-only and read-write users for the
+        /// application
+        #[arg(long, default_value = "root")]
+        etcd_admin_username: String,
+
+        /// etcd admin password
+        #[arg(long, default_value = "password")]
+        etcd_admin_password: String,
+
         /// etcd read-only user to create (if it doesn't already exist)
+        /// This user will be used by secondary servers to read from etcd,
         #[arg(long, default_value = "rustlinks_ro")]
-        etcd_readonly_user: String,
+        etcd_read_only_username: String,
 
         /// etcd read-only user password
         #[arg(long, default_value = "default")]
-        etcd_readonly_password: String,
+        etcd_read_only_password: String,
+
+        /// etcd read-write user to create (if it doesn't already exist)
+        /// This user will be used by secondary servers to read from etcd,
+        #[arg(long, default_value = "rustlinks_rw")]
+        etcd_read_write_username: String,
+
+        /// etcd read-write user password
+        #[arg(long, default_value = "default")]
+        etcd_read_write_password: String,
 
         /// Use `mkcert` to create a local CA to generate certificates
-        /// to provide TLS during navigation
+        /// to provide TLS
         #[arg(long, default_value_t = true)]
-        use_mkcert: bool,
+        install_ca: bool,
     },
 }
 
@@ -116,7 +145,7 @@ mod unit_tests {
                 etcd_ca_cert: None,
                 etcd_username: None,
                 etcd_password: None,
-                primary: true,
+                read_only: true,
                 cert_file: None,
                 key_file: None,
                 otel_collector_endpoint: Some("http://".to_string()),

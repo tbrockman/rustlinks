@@ -1,3 +1,4 @@
 /target
 .rustlinks
 *.pdb
+.etcd

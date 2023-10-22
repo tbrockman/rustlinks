@@ -14,7 +14,7 @@ pub struct AppState {
     pub(crate) revision: Arc<RwLock<i64>>,
     pub(crate) etcd_client: Arc<Client>,
     pub(crate) links_file: Arc<RwLock<Option<File>>>,
-    pub(crate) primary: bool,
+    pub(crate) read_only: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

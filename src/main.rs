@@ -21,6 +21,7 @@ use actix_web::{web, App, HttpServer};
 use actix_web_opentelemetry::RequestMetrics;
 use actix_web_opentelemetry::RequestTracing;
 use datastore::Worker;
+use errors::RustlinksError;
 use etcd_rs::{Client, ClientConfig, Endpoint};
 use opentelemetry::{global, runtime::TokioCurrentThread};
 use tokio::sync::{Mutex, RwLock};
@@ -71,8 +72,6 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
 
     match links_filepath.parent() {
         Some(parent) => {
-            println!("found parent: {:?}", parent);
-
             if !parent.exists() {
                 std::fs::create_dir_all(parent)?;
             }
@@ -99,7 +98,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         etcd_client: Arc::new(etcd_client),
         revision: Arc::new(RwLock::new(0)),
         links_file: Arc::new(RwLock::new(links_file)),
-        primary: cli.global.primary,
+        read_only: cli.global.read_only,
     });
     let worker = Box::new(Worker {
         state: state.clone(),
@@ -144,7 +143,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
     global::shutdown_tracer_provider();
     exit_result
 }
-async fn configure(cli: cli::RustlinksOpts) -> Result<(), ()> {
+async fn configure(cli: cli::RustlinksOpts) -> Result<(), RustlinksError> {
     Ok(())
 }
 
@@ -154,6 +153,6 @@ async fn main() -> Result<(), errors::RustlinksError> {
 
     match cli.command {
         cli::Commands::Start { .. } => start(cli).await,
-        _ => todo!(),
+        cli::Commands::Init { .. } => configure(cli).await,
     }
 }
