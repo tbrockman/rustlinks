@@ -5,6 +5,7 @@ use crate::{rustlink::Rustlink, state::AppState, util};
 
 #[get("/links")]
 pub async fn get_rustlinks(data: web::Data<AppState>) -> impl Responder {
+    // TODO: cursor-based pagination
     let rustlinks = data.rustlinks.read().await;
     return HttpResponse::Ok().json(rustlinks.values().collect::<Vec<&Rustlink>>());
 }

@@ -10,6 +10,7 @@ pub mod health;
 pub mod redirect;
 pub mod rustlink;
 pub mod state;
+pub mod tls;
 pub mod util;
 
 use std::{
@@ -17,7 +18,7 @@ use std::{
     sync::Arc,
 };
 
-use actix_web::{web, App, HttpServer};
+use actix_web::{dev::Server, web, App, HttpServer};
 use actix_web_opentelemetry::RequestMetrics;
 use actix_web_opentelemetry::RequestTracing;
 use datastore::Worker;
@@ -63,6 +64,11 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         hostname,
         port,
         data_dir,
+        cert,
+        key,
+        oidc_well_known_config_url,
+        oidc_client_id,
+        redirect_endpoint,
     }: cli::Commands = cli.command
     else {
         unreachable!();
@@ -105,7 +111,8 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         cancel: Arc::new(Mutex::new(None)),
         sleep: Arc::new(Mutex::new(None)),
     });
-    let server_future = HttpServer::new(move || {
+
+    let server = HttpServer::new(move || {
         App::new()
             .app_data(state.clone())
             .service(
@@ -118,9 +125,17 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
             .service(redirect::redirect)
             .wrap(RequestMetrics::default())
             .wrap(RequestTracing::new())
-    })
-    .bind((hostname, port))?
-    .run();
+    });
+
+    let server_future: Server;
+
+    if let Some(cert) = cert && let Some(key) = key {
+        let config = tls::load_rustls_config(cert, key)?;
+        server_future = server.bind_rustls_021((hostname, port), config)?.run();
+    } else {
+        server_future = server.bind((hostname, port))?.run();
+    }
+
     let worker_start = worker.clone();
     let worker_stop = worker.clone();
 
@@ -143,7 +158,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
     global::shutdown_tracer_provider();
     exit_result
 }
-async fn configure(cli: cli::RustlinksOpts) -> Result<(), RustlinksError> {
+async fn install(cli: cli::RustlinksOpts) -> Result<(), RustlinksError> {
     Ok(())
 }
 
@@ -153,6 +168,6 @@ async fn main() -> Result<(), errors::RustlinksError> {
 
     match cli.command {
         cli::Commands::Start { .. } => start(cli).await,
-        cli::Commands::Init { .. } => configure(cli).await,
+        cli::Commands::Install { .. } => install(cli).await,
     }
 }

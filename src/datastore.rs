@@ -154,7 +154,7 @@ impl Worker {
                         }
                         etcd_rs::Error::IOError(_) => todo!(),
                         etcd_rs::Error::Transport(_) => todo!(),
-                        etcd_rs::Error::ChannelClosed => todo!(),
+                        etcd_rs::Error::ChannelClosed => todo!(), // TODO: handle issues on watch
                         _ => todo!(),
                     }
                     eprintln!("encounter error: {:?}", e);

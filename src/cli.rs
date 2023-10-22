@@ -56,17 +56,16 @@ pub struct GlobalOpts {
     #[arg(long, default_value_t = false)]
     pub(crate) read_only: bool,
 
-    /// Certificate file to be used by the server for TLS
-    #[arg(long)]
-    pub(crate) cert_file: Option<PathBuf>,
-
-    /// Key file to be used by the server for TLS
-    #[arg(long)]
-    pub(crate) key_file: Option<PathBuf>,
-
     /// OpenTelemetry collector endpoint
     #[arg(long, default_value = "http://127.0.0.1:4317")]
     pub(crate) otel_collector_endpoint: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OIDCProvider {
+    pub(crate) well_known_config_url: String,
+    pub(crate) client_id: String,
+    pub(crate) redirect_endpoint: String,
 }
 
 #[derive(Subcommand, Debug, Serialize, Deserialize)]
@@ -74,7 +73,7 @@ pub enum Commands {
     /// Start the server
     Start {
         /// Hostname or IP address to bind to
-        #[arg(long, default_value = "rs")]
+        #[arg(long, default_value = "127.13.37.1")]
         hostname: String,
 
         /// Port to bind to
@@ -84,12 +83,37 @@ pub enum Commands {
         /// Path to a directory to persist Rustlink data
         #[arg(long, default_value = ".rustlinks/")]
         data_dir: PathBuf,
+
+        /// Certificate .PEM to be used by the server for TLS
+        /// Specify both '--cert' and '--key' to enable TLS
+        #[arg(long, requires("key"))]
+        cert: Option<PathBuf>,
+
+        /// Key .PEM to be used by the server for TLS
+        /// Specify both '--cert' and '--key' to enable TLS
+        #[arg(long, requires("cert"))]
+        key: Option<PathBuf>,
+
+        // #[arg(long, default_value = None)]
+        // pub(crate) oidc_providers: Vec<OIDCProvider>,
+        /// OpenID Connect well-known configuration URL
+        /// This is used to discover the OpenID Connect provider's endpoints
+        /// Example: https://accounts.google.com/.well-known/openid-configuration
+
+        #[arg(long, default_value = None)]
+        oidc_well_known_config_url: Option<String>,
+
+        #[arg(long, default_value = None)]
+        oidc_client_id: Option<String>,
+
+        #[arg(long, default_value = "/oauth2/callback")]
+        redirect_endpoint: Option<String>,
     },
     /// Setup the application, automatically performs certificate
     /// generation, etcd role+user provisioning, and other setup required for
     /// the application to run in a typical production setup.
-    Init {
-        /// IP address of the local server
+    Install {
+        /// IP address for the local server to bind to
         /// Should be unique localhost IP address to guarantee ports :443 and
         /// :80 are available.
         #[arg(long, default_value = "127.13.37.1")]
@@ -146,14 +170,17 @@ mod unit_tests {
                 etcd_username: None,
                 etcd_password: None,
                 read_only: true,
-                cert_file: None,
-                key_file: None,
                 otel_collector_endpoint: Some("http://".to_string()),
             },
             command: Commands::Start {
                 hostname: "".to_string(),
                 port: 0,
                 data_dir: PathBuf::from(""),
+                cert: None,
+                key: None,
+                oidc_well_known_config_url: None,
+                oidc_client_id: None,
+                redirect_endpoint: None,
             },
         };
         let serialized = serde_json::to_string(&opts).unwrap();
