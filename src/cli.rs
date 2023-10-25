@@ -94,7 +94,7 @@ pub enum Commands {
             long,
             default_value = "https://rustlinks.theo.lol/api/v1/oauth/callback"
         )]
-        oauth_redirect_endpoint: String, // TODO: fix host vs path
+        oauth_redirect_uri: String, // TODO: fix host vs path
 
         /// Specify any OIDC providers the server will support using a
         /// comma-separated tuple of provider_url,client_id(,client_secret).
@@ -172,7 +172,7 @@ mod unit_tests {
                 cert_file: None,
                 key_file: None,
                 oidc_providers: vec![],
-                oauth_redirect_endpoint: "".to_string(),
+                oauth_redirect_uri: "".to_string(),
             },
         };
         let serialized = serde_json::to_string(&opts).unwrap();

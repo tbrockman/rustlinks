@@ -5,9 +5,6 @@ use actix_web::{
     web::{self, Redirect},
     Either, HttpResponse, Responder,
 };
-use openidconnect::{
-    core::CoreAuthenticationFlow, CsrfToken, Nonce, PkceCodeChallenge, RedirectUrl,
-};
 use serde::Deserialize;
 
 use crate::state;
@@ -30,33 +27,28 @@ pub async fn callback(query: web::Query<HashMap<String, String>>) -> impl Respon
     HttpResponse::Ok().body("OK")
 }
 
-#[get("/login")]
-pub async fn login(
-    state: web::Data<state::AppState>,
-    query: web::Query<LoginQuery>,
-) -> Either<web::Redirect, HttpResponse> {
-    // Determine whether or not the server supports that issuer (exists an item in
-    // map "issuer" -> "client_id")
-    if let Some(provider) = state.oidc_providers.get(&query.provider_url) {
-        // Otherwise, redirect to the provider's authorization endpoint (with
-        // appropriately set params)
-        let (url, csrf, nonce) = provider
-            .authorize_url(
-                CoreAuthenticationFlow::Implicit(false),
-                CsrfToken::new_random,
-                Nonce::new_random,
-            )
-            .url();
+// #[get("/authorize")]
+// pub async fn authorize(
+//     state: web::Data<state::AppState>,
+//     query: web::Query<LoginQuery>,
+// ) -> Either<web::Redirect, HttpResponse> { // Determine whether or not the
+//   server supports that issuer (exists an item in // map "issuer" ->
+//   "client_id") if let Some(provider) =
+//   state.oidc_providers.get(&query.provider_url) { // Otherwise, redirect to
+//   the provider's authorization endpoint (with // appropriately set params)
+//   let (url, csrf, nonce) = provider .authorize_url(
+//   CoreAuthenticationFlow::Implicit(false), CsrfToken::new_random,
+//   Nonce::new_random, ) .url();
 
-        Either::Left(Redirect::to(url.to_string()))
-    } else {
-        let urls = state.oidc_providers.keys().collect::<Vec<&String>>();
-        Either::Right(HttpResponse::NotFound().body(format!(
-            "Specified provider URL not found, currently have: {:?}",
-            urls
-        )))
-    }
-}
+//         Either::Left(Redirect::to(url.to_string()))
+//     } else {
+//         let urls = state.oidc_providers.keys().collect::<Vec<&String>>();
+//         Either::Right(HttpResponse::NotFound().body(format!(
+//             "Specified provider URL not found, currently have: {:?}",
+//             urls
+//         )))
+//     }
+// }
 
 #[post("/logout")]
 pub async fn logout() -> impl Responder {

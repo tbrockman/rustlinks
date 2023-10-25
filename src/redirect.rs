@@ -304,7 +304,6 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
-                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )
@@ -342,7 +341,6 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
-                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )
@@ -380,7 +378,6 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
-                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )
@@ -418,7 +415,6 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
-                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )
@@ -456,7 +452,6 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
-                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )
@@ -494,7 +489,6 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
-                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )

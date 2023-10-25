@@ -24,10 +24,9 @@ use actix_web_opentelemetry::RequestMetrics;
 use actix_web_opentelemetry::RequestTracing;
 use errors::RustlinksError;
 use etcd_rs::{Client, ClientConfig, Endpoint};
-use futures::future::join_all;
-use openidconnect::core::CoreClient;
 use opentelemetry::{global, runtime::TokioCurrentThread};
 use tokio::sync::{Mutex, RwLock};
+use url::Url;
 use worker::Worker;
 
 type RustlinkAlias = String;
@@ -70,7 +69,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         cert_file,
         key_file,
         oidc_providers,
-        oauth_redirect_endpoint,
+        oauth_redirect_uri: oauth_redirect_endpoint,
     }: cli::Commands = cli.command
     else {
         unreachable!();
@@ -102,26 +101,6 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         }
     };
 
-    let tasks = oidc_providers.into_iter().map(|s| {
-        let endpoint = oauth_redirect_endpoint.clone();
-        tokio::task::spawn(async move {
-            (
-                s.provider_url.clone(),
-                oidc::provider::create_provider_client(s, endpoint).await,
-            )
-        })
-    });
-    let results = join_all(tasks).await;
-    let providers = Arc::new(
-        results
-            .into_iter()
-            .map(|r| {
-                let (provider_url, client_result) = r.unwrap();
-                (provider_url, client_result.unwrap())
-            })
-            .collect::<HashMap<String, CoreClient>>(),
-    );
-
     let state = web::Data::new(state::AppState {
         rustlinks: Arc::new(RwLock::new(Default::default())),
         etcd_client: Arc::new(etcd_client),
@@ -129,13 +108,19 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         links_file: Arc::new(RwLock::new(links_file)),
         read_only: cli.global.read_only,
         oauth_redirect_endpoint: Arc::new(oauth_redirect_endpoint.clone()),
-        oidc_providers: providers,
     });
     let worker = Box::new(Worker {
         state: state.clone(),
         cancel: Arc::new(Mutex::new(None)),
         sleep: Arc::new(Mutex::new(None)),
     });
+    let url = match Url::parse(oauth_redirect_endpoint.as_str()) {
+        Ok(u) => u,
+        Err(e) => {
+            eprintln!("Failed to parse OAuth redirect endpoint: {:?}", e);
+            return Err(RustlinksError::OAuthEndpointParseError(e));
+        }
+    };
 
     let server = HttpServer::new(move || {
         App::new()
@@ -149,16 +134,9 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
                             .service(api::v1::links::delete_rustlink)
                             .service(api::v1::links::get_rustlinks),
                     )
-                    .service(
-                        web::scope("/oauth")
-                            .service(
-                                web::resource(oauth_redirect_endpoint.as_str())
-                                    .route(web::get().to(api::v1::oauth::callback)),
-                            )
-                            .service(api::v1::oauth::login)
-                            .service(api::v1::oauth::logout),
-                    ),
+                    .service(web::scope("/oauth")), //TODO: re-work oauth functions
             )
+            .service(web::resource(url.path()).route(web::get().to(api::v1::oauth::callback)))
             .service(redirect::redirect)
             .wrap(RequestMetrics::default())
             .wrap(RequestTracing::new())

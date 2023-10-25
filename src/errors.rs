@@ -1,6 +1,5 @@
 use std;
 
-use actix_web;
 use etcd_rs;
 use thiserror::Error;
 
@@ -20,6 +19,6 @@ pub enum RustlinksError {
     ParseError(String),
     #[error("oidc discovery error: {0}")]
     OIDCDiscoveryError(String),
-    #[error("oidc error: {0}")]
-    OIDCParseError(#[from] openidconnect::url::ParseError),
+    #[error("oauth endpoint parse error: {0}")]
+    OAuthEndpointParseError(#[from] url::ParseError),
 }
