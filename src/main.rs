@@ -5,6 +5,7 @@
 pub mod api;
 pub mod cli;
 pub mod errors;
+pub mod oidc;
 pub mod redirect;
 pub mod rustlink;
 pub mod state;
@@ -13,6 +14,7 @@ pub mod util;
 pub mod worker;
 
 use std::{
+    collections::HashMap,
     fs::{File, OpenOptions},
     sync::Arc,
 };
@@ -22,6 +24,8 @@ use actix_web_opentelemetry::RequestMetrics;
 use actix_web_opentelemetry::RequestTracing;
 use errors::RustlinksError;
 use etcd_rs::{Client, ClientConfig, Endpoint};
+use futures::future::join_all;
+use openidconnect::core::CoreClient;
 use opentelemetry::{global, runtime::TokioCurrentThread};
 use tokio::sync::{Mutex, RwLock};
 use worker::Worker;
@@ -63,10 +67,9 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         hostname,
         port,
         data_dir,
-        cert,
-        key,
-        oidc_well_known_config_url,
-        oidc_client_id,
+        cert_file,
+        key_file,
+        oidc_providers,
         oauth_redirect_endpoint,
     }: cli::Commands = cli.command
     else {
@@ -98,6 +101,27 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
             None
         }
     };
+
+    let tasks = oidc_providers.into_iter().map(|s| {
+        let endpoint = oauth_redirect_endpoint.clone();
+        tokio::task::spawn(async move {
+            (
+                s.client_id.clone(),
+                oidc::provider::create_provider_client(s, endpoint).await,
+            )
+        })
+    });
+    let results = join_all(tasks).await;
+    let providers = Arc::new(
+        results
+            .into_iter()
+            .map(|r| {
+                let (client_id, client_result) = r.unwrap();
+                (client_id, client_result.unwrap())
+            })
+            .collect::<HashMap<String, CoreClient>>(),
+    );
+
     let state = web::Data::new(state::AppState {
         rustlinks: Arc::new(RwLock::new(Default::default())),
         etcd_client: Arc::new(etcd_client),
@@ -105,6 +129,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         links_file: Arc::new(RwLock::new(links_file)),
         read_only: cli.global.read_only,
         oauth_redirect_endpoint: Arc::new(oauth_redirect_endpoint.clone()),
+        oidc_providers: providers,
     });
     let worker = Box::new(Worker {
         state: state.clone(),
@@ -138,7 +163,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
 
     let server_future: Server;
 
-    if let Some(cert) = cert && let Some(key) = key {
+    if let Some(cert) = cert_file && let Some(key) = key_file {
         let config = tls::load_rustls_config(cert, key)?;
         server_future = server.bind_rustls_021((hostname, port), config)?.run();
     } else {

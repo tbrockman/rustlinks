@@ -10,7 +10,7 @@ a work-in-progress Rust implementation of [golinks](https://golinks.github.io/go
 - [x] traces
 - [x] tls
   - [ ] sni
-- [ ] oauth
+- [ ] oidc client
 
 ## development
 

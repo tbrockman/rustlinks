@@ -1,7 +1,9 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr, string::ParseError};
 
 use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
+
+use crate::{errors::RustlinksError, oidc, util::password_prompt};
 
 /// A simple application for managing short links
 /// For debug logs, set RUST_LOG=debug
@@ -61,13 +63,6 @@ pub struct GlobalOpts {
     pub(crate) otel_collector_endpoint: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OIDCProvider {
-    pub(crate) well_known_config_url: String,
-    pub(crate) client_id: String,
-    pub(crate) redirect_endpoint: String,
-}
-
 #[derive(Subcommand, Debug, Serialize, Deserialize)]
 pub enum Commands {
     /// Start the server
@@ -85,29 +80,32 @@ pub enum Commands {
         data_dir: PathBuf,
 
         /// Certificate .PEM to be used by the server for TLS
-        /// Specify both '--cert' and '--key' to enable TLS
-        #[arg(long, requires("key"))]
-        cert: Option<PathBuf>,
+        /// Specify both '--cert-file' and '--key-file' to enable TLS
+        #[arg(long, requires("key_file"))]
+        cert_file: Option<PathBuf>,
 
         /// Key .PEM to be used by the server for TLS
-        /// Specify both '--cert' and '--key' to enable TLS
-        #[arg(long, requires("cert"))]
-        key: Option<PathBuf>,
+        /// Specify both '--cert-file' and '--key-file' to enable TLS
+        #[arg(long, requires("cert_file"))]
+        key_file: Option<PathBuf>,
 
-        // #[arg(long, default_value = None)]
-        // pub(crate) oidc_providers: Vec<OIDCProvider>,
-        /// OpenID Connect well-known configuration URL
-        /// This is used to discover the OpenID Connect provider's endpoints
-        /// Example: https://accounts.google.com/.well-known/openid-configuration
-
-        #[arg(long, default_value = None)]
-        oidc_well_known_config_url: Option<String>,
-
-        #[arg(long, default_value = None)]
-        oidc_client_id: Option<String>,
-
-        #[arg(long, default_value = "/api/v1/oauth2/callback")]
+        /// TODO:
+        #[arg(
+            long,
+            default_value = "https://rustlinks.theo.lol/api/v1/oauth2/callback"
+        )]
         oauth_redirect_endpoint: String,
+
+        /// Specify any OIDC providers the server will support using a
+        /// comma-separated tuple of provider_url,client_id(,client_secret).
+        /// Will prompt for each corresponding client_secret (in order)
+        /// from stdin if not provided as a command-line argument.
+        ///
+        /// Example: --oidc-providers "https://accounts.google.com,123456789"
+        ///
+        /// `/api/v1/rustlinks` endpoints will be guarded by OIDC authentication
+        #[arg(long, num_args = 0..)]
+        oidc_providers: Vec<oidc::provider::OIDCProvider>,
     },
     /// Setup the application, automatically performs certificate
     /// generation, etcd role+user provisioning, and other setup required for
@@ -171,10 +169,9 @@ mod unit_tests {
                 hostname: "".to_string(),
                 port: 0,
                 data_dir: PathBuf::from(""),
-                cert: None,
-                key: None,
-                oidc_well_known_config_url: None,
-                oidc_client_id: None,
+                cert_file: None,
+                key_file: None,
+                oidc_providers: vec![],
                 oauth_redirect_endpoint: "".to_string(),
             },
         };

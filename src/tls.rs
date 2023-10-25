@@ -6,8 +6,8 @@ use rustls_pemfile::{certs, pkcs8_private_keys};
 
 use crate::errors::RustlinksError;
 
-// TODO: allow client auth
-// TODO: allow SNI
+// TODO: support client auth
+// TODO: support SNI
 pub fn load_rustls_config(
     cert_file_path: PathBuf,
     key_file_path: PathBuf,

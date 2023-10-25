@@ -11,7 +11,7 @@ use crate::state;
 
 #[get("/{alias:.*}")]
 pub async fn redirect(
-    data: web::Data<state::AppState>,
+    state: web::Data<state::AppState>,
     path: web::Path<String>,
 ) -> Either<web::Redirect, HttpResponse> {
     let tracer = global::tracer("redirect");
@@ -21,7 +21,7 @@ pub async fn redirect(
             let mut split = full.split(" ");
             let alias = split.next().unwrap();
             let params = split.remainder();
-            let rustlinks = data.rustlinks.read().await;
+            let rustlinks = state.rustlinks.read().await;
 
             get_active_span(|span| match rustlinks.get(alias) {
                 Some(rustlink) => {
@@ -304,6 +304,7 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )
@@ -341,6 +342,7 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )
@@ -378,6 +380,7 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )
@@ -415,6 +418,7 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )
@@ -452,6 +456,7 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )
@@ -489,6 +494,7 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oidc_providers: Arc::new(HashMap::new()),
                 }))
                 .service(redirect),
         )

@@ -3,6 +3,7 @@ use std::fs::File;
 use std::sync::Arc;
 
 use etcd_rs::Client;
+use openidconnect::core::CoreClient;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
@@ -16,6 +17,7 @@ pub struct AppState {
     pub(crate) links_file: Arc<RwLock<Option<File>>>,
     pub(crate) read_only: bool,
     pub(crate) oauth_redirect_endpoint: Arc<String>,
+    pub(crate) oidc_providers: Arc<HashMap<String, CoreClient>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
