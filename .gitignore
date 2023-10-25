@@ -3,3 +3,4 @@
 *.pdb
 .etcd
 *.pem
+.vscode

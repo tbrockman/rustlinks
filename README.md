@@ -30,7 +30,7 @@ cargo build
 
 ```shell
 # start etcd, otel collector, clickhouse, and grafana
-docker-compose up -d
+docker compose up -d
 # start the rustlinks server locally
 cargo run -- start
 ```
@@ -42,7 +42,7 @@ install [mkcert](https://github.com/FiloSottile/mkcert#installation) (if you don
 ```shell
 mkcert -install
 mkcert -key-file key.pem -cert-file cert.pem rs # [...and any other hostnames]
-cargo run -- start --cert cert.pem --key key.pem --port 443
+cargo run -- start --cert-file cert.pem --key-file key.pem --port 443
 ```
 
 ## architecture

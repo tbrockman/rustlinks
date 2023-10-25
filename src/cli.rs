@@ -92,9 +92,9 @@ pub enum Commands {
         /// TODO:
         #[arg(
             long,
-            default_value = "https://rustlinks.theo.lol/api/v1/oauth2/callback"
+            default_value = "https://rustlinks.theo.lol/api/v1/oauth/callback"
         )]
-        oauth_redirect_endpoint: String,
+        oauth_redirect_endpoint: String, // TODO: fix host vs path
 
         /// Specify any OIDC providers the server will support using a
         /// comma-separated tuple of provider_url,client_id(,client_secret).

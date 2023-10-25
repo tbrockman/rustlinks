@@ -106,7 +106,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         let endpoint = oauth_redirect_endpoint.clone();
         tokio::task::spawn(async move {
             (
-                s.client_id.clone(),
+                s.provider_url.clone(),
                 oidc::provider::create_provider_client(s, endpoint).await,
             )
         })
@@ -116,8 +116,8 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         results
             .into_iter()
             .map(|r| {
-                let (client_id, client_result) = r.unwrap();
-                (client_id, client_result.unwrap())
+                let (provider_url, client_result) = r.unwrap();
+                (provider_url, client_result.unwrap())
             })
             .collect::<HashMap<String, CoreClient>>(),
     );
@@ -141,7 +141,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         App::new()
             .app_data(state.clone())
             .service(
-                web::scope("/api/v1/")
+                web::scope("/api/v1")
                     .service(web::scope("/health").service(api::v1::health::check))
                     .service(
                         web::scope("/links")
@@ -150,10 +150,13 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
                             .service(api::v1::links::get_rustlinks),
                     )
                     .service(
-                        web::scope("/oauth").service(
-                            web::resource(oauth_redirect_endpoint.as_str())
-                                .route(web::get().to(api::v1::oauth::callback)),
-                        ),
+                        web::scope("/oauth")
+                            .service(
+                                web::resource(oauth_redirect_endpoint.as_str())
+                                    .route(web::get().to(api::v1::oauth::callback)),
+                            )
+                            .service(api::v1::oauth::login)
+                            .service(api::v1::oauth::logout),
                     ),
             )
             .service(redirect::redirect)
