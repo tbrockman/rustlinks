@@ -5,7 +5,7 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const { CleanWebpackPlugin } = require('clean-webpack-plugin')
 
 const buildDirectory = '../dist'
-const publicPath = '/ui/'
+const publicPath = '/_ui/'
 
 module.exports = [
    {

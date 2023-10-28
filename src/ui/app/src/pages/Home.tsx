@@ -1,20 +1,13 @@
 import React from 'react'
-import Counter from '../components/Counter'
-import Link from '../components/Link'
+import SearchOrCreate from '../components/SearchOrCreate'
+import Grid from "@mui/joy/Grid/Grid"
 
 const Home: React.FC = () => {
    return (
       <>
-         <div className='wrapper'>
-            <h1>
-               Hello from
-               <br />
-               Reactix
-            </h1>
-            <p>React (SSR) project powered by actix backend and graphql</p>
-            <Counter />
-            <Link link='https://github.com/Valerioageno/reactix'>Repo</Link>
-         </div>
+         <Grid container alignItems={"center"} justifyContent={"center"}>
+            <SearchOrCreate />
+         </Grid>
       </>
    )
 }

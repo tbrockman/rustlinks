@@ -6,6 +6,7 @@ a work-in-progress Rust implementation of [golinks](https://golinks.github.io/go
 
 - [x] no upfront network requests for link resolution
 - [ ] browser ui
+- [ ] search index
 - [x] metrics
 - [x] traces
 - [x] tls

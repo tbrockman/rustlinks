@@ -17,7 +17,7 @@ export const Index = (params: string | undefined): string => {
    <title>Reactix</title>
    ${helmetData.title.toString()}
    ${helmetData.meta.toString()}
-   <link rel="stylesheet" href="./ui/styles/ssr.css">
+   <link rel="stylesheet" href="./_ui/styles/ssr.css">
 </head>
 <body>
    <noscript>Your browser does not support JavaScript!</noscript>
@@ -38,7 +38,7 @@ export const Index = (params: string | undefined): string => {
       </StaticRouter>
    )}
    </div>
-   <script src="./ui/scripts/bundle.js"></script>
+   <script src="./_ui/scripts/bundle.js"></script>
 </body>
 </html>
     `

@@ -37,3 +37,6 @@ metrics = [
     "actix-web-opentelemetry/metrics",
     "opentelemetry-otlp/metrics",
 ]
+
+[dev-dependencies]
+cargo-watch = "8.4.1"
