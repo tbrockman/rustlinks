@@ -53,7 +53,9 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server
     healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/?query=SELECT%201 || exit 1
+      retries: 3
+      start_period: 5s
     volumes:
       - ./config/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml
       - ./config/clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml

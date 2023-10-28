@@ -1,3 +1,7 @@
 [submodule "src/etcd-rs"]
 	path = src/etcd-rs
 	url = https://github.com/tbrockman/etcd-rs
+
+[submodule "src/ssr-rs"]
+	path = src/ssr-rs
+	url = https://github.com/tbrockman/ssr-rs

@@ -16,6 +16,7 @@ pub struct AppState {
     pub(crate) links_file: Arc<RwLock<Option<File>>>,
     pub(crate) read_only: bool,
     pub(crate) oauth_redirect_endpoint: Arc<String>,
+    pub(crate) js_source: Arc<RwLock<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

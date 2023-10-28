@@ -4,3 +4,8 @@
 .etcd
 *.pem
 .vscode
+
+.DS_STORE
+node_modules
+build/
+dist

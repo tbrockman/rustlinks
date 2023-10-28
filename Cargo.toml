@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+actix-files = "0.6.2"
 actix-web = { version = "4.4.0", features = ["rustls-0_21"] }
 actix-web-opentelemetry = { version = "0.15.0", optional = true }
 clap = { version = "4.4.6", features = ["derive", "env"] }
@@ -21,8 +22,10 @@ rustls = "0.21.7"
 rustls-pemfile = "1.0.3"
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
+ssr_rs = { path = "src/ssr-rs" }
 thiserror = "1.0.50"
 tokio = { version = "1.32.0", features = ["full"] }
+tokio-stream = "0.1.14"
 url = "2.4.1"
 urlencoding = "2.1.3"
 

@@ -10,15 +10,18 @@ pub mod redirect;
 pub mod rustlink;
 pub mod state;
 pub mod tls;
+pub mod ui;
 pub mod util;
 pub mod worker;
 
+use std::fs::read_to_string;
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
     sync::Arc,
 };
 
+use actix_files::Files;
 use actix_web::{dev::Server, web, App, HttpServer};
 use actix_web_opentelemetry::RequestMetrics;
 use actix_web_opentelemetry::RequestTracing;
@@ -108,6 +111,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         links_file: Arc::new(RwLock::new(links_file)),
         read_only: cli.global.read_only,
         oauth_redirect_endpoint: Arc::new(oauth_redirect_endpoint.clone()),
+        js_source: Arc::new(RwLock::new(read_to_string("./src/ui/dist/index.js")?)),
     });
     let worker = Box::new(Worker {
         state: state.clone(),
@@ -137,6 +141,11 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
                     .service(web::scope("/oauth")), //TODO: re-work oauth functions
             )
             .service(web::resource(url.path()).route(web::get().to(api::v1::oauth::callback)))
+            .service(Files::new("/ui/styles", "./src/ui/dist/styles").show_files_listing())
+            .service(Files::new("/ui/images", "./src/ui/dist/images").show_files_listing())
+            .service(Files::new("/ui/scripts", "./src/ui/dist/scripts").show_files_listing())
+            .service(web::redirect("/", "/ui"))
+            .service(web::scope("/ui").service(ui::route::index))
             .service(redirect::redirect)
             .wrap(RequestMetrics::default())
             .wrap(RequestTracing::new())

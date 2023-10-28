@@ -56,7 +56,7 @@ cargo run -- start --cert-file cert.pem --key-file key.pem --port 443
 
 ## todo
 
-- [ ] CLI, unit, and integration tests
+- [ ] tests: CLI, unit, and integration tests
 - [ ] a React UI for CRUD'ing link aliases
 - [ ] OAuth
 - [ ] limit link storage (to not break `etcd` or unnecessarily store links which likely won't be used)
