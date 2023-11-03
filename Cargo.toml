@@ -14,6 +14,8 @@ dialoguer = "0.11.0"
 dyn-fmt = "0.4.0"
 etcd-rs = { path = "src/etcd-rs" }
 futures = "0.3.28"
+lazy_static = "1.4.0"
+openidconnect = "3.4.0"
 opentelemetry = { version = "0.20.0", features = [
     "rt-tokio-current-thread",
 ], optional = true }
@@ -40,3 +42,6 @@ metrics = [
 
 [dev-dependencies]
 cargo-watch = "8.4.1"
+
+[profile.release]
+lto = true

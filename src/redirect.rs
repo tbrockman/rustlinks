@@ -304,7 +304,9 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     js_source: Arc::new(RwLock::new("".to_string())),
-                    oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oauth_redirect_endpoint: "".to_string(),
+                    login_path: "".to_string(),
+                    oidc_providers: Arc::new(RwLock::new(vec![])),
                 }))
                 .service(redirect),
         )
@@ -341,8 +343,10 @@ mod integration_tests {
                     links_file: Arc::new(RwLock::new(None)),
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
-                    oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oauth_redirect_endpoint: "".to_string(),
+                    login_path: "".to_string(),
                     js_source: Arc::new(RwLock::new("".to_string())),
+                    oidc_providers: Arc::new(RwLock::new(vec![])),
                 }))
                 .service(redirect),
         )
@@ -380,7 +384,9 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     js_source: Arc::new(RwLock::new("".to_string())),
-                    oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oauth_redirect_endpoint: "".to_string(),
+                    login_path: "".to_string(),
+                    oidc_providers: Arc::new(RwLock::new(vec![])),
                 }))
                 .service(redirect),
         )
@@ -418,7 +424,9 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     js_source: Arc::new(RwLock::new("".to_string())),
-                    oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oauth_redirect_endpoint: "".to_string(),
+                    login_path: "".to_string(),
+                    oidc_providers: Arc::new(RwLock::new(vec![])),
                 }))
                 .service(redirect),
         )
@@ -456,7 +464,9 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     js_source: Arc::new(RwLock::new("".to_string())),
-                    oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oauth_redirect_endpoint: "".to_string(),
+                    login_path: "".to_string(),
+                    oidc_providers: Arc::new(RwLock::new(vec![])),
                 }))
                 .service(redirect),
         )
@@ -494,7 +504,9 @@ mod integration_tests {
                     revision: Arc::new(RwLock::new(0)),
                     read_only: true,
                     js_source: Arc::new(RwLock::new("".to_string())),
-                    oauth_redirect_endpoint: Arc::new("".to_string()),
+                    oauth_redirect_endpoint: "".to_string(),
+                    login_path: "".to_string(),
+                    oidc_providers: Arc::new(RwLock::new(vec![])),
                 }))
                 .service(redirect),
         )

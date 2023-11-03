@@ -10,7 +10,7 @@ const publicPath = '/_ui/'
 module.exports = [
    {
       mode: 'production',
-      target: 'web',
+      target: 'webworker',
       entry: path.resolve(__dirname, './src/ssr.tsx'),
       output: {
          publicPath,
@@ -49,8 +49,8 @@ module.exports = [
                ],
             },
             {
-               test: /\.s[ac]ss$/i,
-               use: [MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader'],
+               test: /\.s?[ac]?ss$/i,
+               use: [MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader', 'postcss-loader'],
             },
          ],
       },
@@ -68,7 +68,7 @@ module.exports = [
    },
    {
       mode: 'production',
-      target: 'web',
+      target: 'webworker',
       entry: path.resolve(__dirname, './src/index.tsx'),
       output: {
          publicPath,
@@ -101,8 +101,8 @@ module.exports = [
                ],
             },
             {
-               test: /\.s[ac]ss$/i,
-               use: [MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader'],
+               test: /\.s?[ac]?ss$/i,
+               use: [MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader', 'postcss-loader'],
             },
          ],
       },

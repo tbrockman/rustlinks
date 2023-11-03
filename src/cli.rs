@@ -96,10 +96,13 @@ pub enum Commands {
         )]
         oauth_redirect_uri: String, // TODO: fix host vs path
 
+        /// TODO:
+        #[arg(long, default_value = "/login")]
+        // TODO: same as above
+        login_path: String,
+
         /// Specify any OIDC providers the server will support using a
-        /// comma-separated tuple of provider_url,client_id(,client_secret).
-        /// Will prompt for each corresponding client_secret (in order)
-        /// from stdin if not provided as a command-line argument.
+        /// comma-separated tuple of provider_url,client_id.
         ///
         /// Example: --oidc-providers "https://accounts.google.com,123456789"
         ///
@@ -173,6 +176,7 @@ mod unit_tests {
                 key_file: None,
                 oidc_providers: vec![],
                 oauth_redirect_uri: "".to_string(),
+                login_path: "".to_string(),
             },
         };
         let serialized = serde_json::to_string(&opts).unwrap();

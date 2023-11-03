@@ -2,16 +2,27 @@
 
 a work-in-progress Rust implementation of [golinks](https://golinks.github.io/golinks/)
 
+## the idea
+
+adding additional network hops to resolve link aliases at the scale that most companies use them is unnecessary, and in a remote/global workforce can be a significant source of latency depending on where those servers reside.
+
+instead, we can synchronize changes in the background, and resolve links locally, without the need for waiting on network requests.
+
 ## features
 
-- [x] no upfront network requests for link resolution
+- [x] links synchronized and stored locally
+- [ ] oidc client
 - [ ] browser ui
-- [ ] search index
 - [x] metrics
 - [x] traces
-- [x] tls
-  - [ ] sni
-- [ ] oidc client
+- [ ] tls
+  - [x] single cert
+  - [ ] sni (see: https://stephanheijl.com/rustls_sni.html)
+- [ ] search index
+- [ ] automatic link pruning
+  - [ ] prunes links which return 404s
+  - [ ] prunes links which haven't been used in a while
+- [ ] saml
 
 ## development
 
@@ -68,3 +79,4 @@ cargo run -- start --cert-file cert.pem --key-file key.pem --port 443
 - [ ] benchmarking/load test
   - [ ] what happens if we insert 100k aliases and then start the program
   - [ ] what happens if we insert 100k aliases while the program is running
+- [ ] look into potentially replacing oidc clients in rust+ts (`openidconnect` and `oidc-client-ts`, respectively) (is the convenience worth the added deps?)

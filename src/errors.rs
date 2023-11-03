@@ -21,4 +21,6 @@ pub enum RustlinksError {
     OIDCDiscoveryError(String),
     #[error("oauth endpoint parse error: {0}")]
     OAuthEndpointParseError(#[from] url::ParseError),
+    #[error("unknown oidc provider: {0}")]
+    UnknownOIDCProvider(String),
 }

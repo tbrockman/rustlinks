@@ -1,12 +1,13 @@
 import React from 'react'
 import { renderToString, renderToStaticMarkup } from 'react-dom/server'
-import { StaticRouter } from 'react-router-dom'
+import { StaticRouter } from "react-router-dom"
 import App from './App'
 import { Helmet } from 'react-helmet'
 
 export const Index = (params: string | undefined): string => {
    const props = params ? JSON.parse(params) : {}
    const helmetData = Helmet.renderStatic()
+   console.log(props)
 
    return `<!doctype html>
 <html lang="en">

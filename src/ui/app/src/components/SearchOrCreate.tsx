@@ -1,165 +1,101 @@
-import Autocomplete from "@mui/joy/Autocomplete"
-import AutocompleteOption from '@mui/joy/AutocompleteOption'
-import FormLabel from "@mui/joy/FormLabel"
-import FormControl from "@mui/joy/FormControl"
-import React, { useEffect, useRef, useState } from "react"
-import Grid from "@mui/joy/Grid/Grid"
-import CircularProgress from "@mui/joy/CircularProgress"
-import { createFilterOptions } from "@mui/joy/Autocomplete"
+import React, { Fragment, useState } from "react"
+import { Combobox, Transition } from '@headlessui/react'
+
+import './SearchOrCreate.scss'
 
 type Rustlink = {
     alias: string,
     url: string,
 }
 
+type Person = {
+    id: number,
+    name: string,
+}
+
+const people: Person[] = [
+    { id: 1, name: 'Wade Cooper' },
+    { id: 2, name: 'Arlene Mccoy' },
+    { id: 3, name: 'Devon Webb' },
+    { id: 4, name: 'Tom Cook' },
+    { id: 5, name: 'Tanya Fox' },
+    { id: 6, name: 'Hellen Schmidt' },
+]
+
 
 export default function SearchOrCreate() {
-    const ref = useRef<HTMLInputElement>(null)
-    const [loading, setLoading] = React.useState<boolean>(false)
-    const [inputValue, setInputValue] = React.useState<string>('')
-    const [link, setLink] = React.useState<Rustlink | null>(null)
-    const [options, setOptions] = useState<Rustlink[]>([])
+    const [selected, setSelected] = useState(people[0])
+    const [query, setQuery] = useState('')
 
-    useEffect(() => {
-        if (inputValue == '') {
-            ref.current?.focus()
-        }
-        // TODO: debounce
-        if (inputValue.length > 1) {
-            // fetch(`/api/links/search`, { method: 'POST', body: JSON.stringify({ query: inputValue }) })
-            //     .then(response => response.json())
-            //     .then(({ results }: { results: ShortLinkDataWithoutViews[] }) => {
-            //         const mapped = results.map(link => {
-            //             return {
-            //                 short: new URLWithoutProtocol(link.short),
-            //                 long: new URLWithoutProtocol(link.long)
-            //             }
-            //         })
-            //         setOptions(mapped)
-            //     })
-            //     .catch(error => console.error(error))
-        }
-    }, [inputValue])
-
-    const getLink = (url: string) => {
-        setLoading(true)
-        // fetch(`/api/links/${url}`)
-        //     .then(response => response.json())
-        //     .then((data: ShortLinkData) => {
-        //         setLink({
-        //             short: new URLWithoutProtocol(data.short),
-        //             long: new URLWithoutProtocol(data.long),
-        //             views: data.views
-        //         })
-        //         setLoading(false)
-        //     })
-    }
-
-    const createLink = (alias: string, url: string) => {
-        setLoading(true)
-        // fetch('/api/links', {
-        //     method: 'POST',
-        //     body: JSON.stringify({ url })
-        // })
-        //     .then(response => response.json())
-        //     .then((data: ShortLink) => {
-        //         data.short = new URLWithoutProtocol(data.short)
-        //         data.long = new URLWithoutProtocol(data.long)
-        //         setLink(data)
-        //         setLoading(false)
-        //     })
-        //     .catch(error => {
-        //         console.error(error)
-        //         setLoading(false)
-        //         setLink(null)
-        //     })
-    }
-
-    const filterOptions = createFilterOptions<[]>({
-        stringify: (option) => URL.prototype.toString.apply(option),
-    })
+    const filteredPeople =
+        query === ''
+            ? people
+            : people.filter((person) =>
+                person.name
+                    .toLowerCase()
+                    .replace(/\s+/g, '')
+                    .includes(query.toLowerCase().replace(/\s+/g, ''))
+            )
 
     return (
-        <Grid container marginTop={'30vh'} spacing={1} flexDirection={'column'} maxWidth={'600px'}>
-            <Grid maxWidth='100%'>
-                <FormControl id="find-or-shorten-form">
-                    <FormLabel style={{ fontSize: '28px', marginBottom: '7px' }}>🔍 Find or create 🦞 rustlinks 🔗</FormLabel>
-                    <Autocomplete
-                        placeholder={'your.link/here'}
-                        value={link?.url || null}
-                        inputValue={inputValue}
-                        loading={loading}
-                        onInputChange={(_, newInputValue) => {
-                            setInputValue(newInputValue)
-                        }}
-                        onChange={(event, newValue, reason) => {
-                            console.log(event, newValue, reason)
-                            if (reason === 'selectOption' && newValue) {
-                                // It will be an object if it's an option which was returned by search
-                                if (typeof newValue === 'object') {
-
-                                    if (newValue.url) {
-                                        getLink(newValue.url)
-                                    }
-                                }
-                            }
-                            else if (reason === 'clear') {
-                                setLink(null)
-                                setOptions([])
-                            }
-                            else if (reason === 'createOption' && typeof newValue === 'string') {
-                                // createLink(newValue)
-                            }
-                        }}
-                        style={{ padding: '0 24px' }}
-                        isOptionEqualToValue={(option, value) => option?.alias === value?.alias}
-                        options={options}
-                        freeSolo
-                        selectOnFocus
-                        handleHomeEndKeys
-                        autoFocus
-                        filterSelectedOptions
-                        autoHighlight
-                        autoSelect
-                        endDecorator={
-                            loading ? (
-                                <CircularProgress size="sm" sx={{ bgcolor: 'background.surface' }} />
-                            ) : null
-                        }
-                        clearOnEscape
-                        slotProps={{
-                            input: {
-                                ref: ref
-                            }
-                        }}
-                        renderOption={(props, option) => <AutocompleteOption {...props} />}
-                        sx={{ width: 600, maxWidth: '100%', borderRadius: '12px' }}
-                        getOptionLabel={(option) =>
-                            typeof option === 'string' ? option : ''
-                        }
-                        filterOptions={(options, params) => {
-
-                            // options = filterOptions(options, params)
-
-                            // if (params.inputValue !== '' && params.inputValue.length > 2) {
-                            //     options.push({
-                            //         short: null,
-                            //         long: params.inputValue,
-                            //         text: `Shorten "${params.inputValue}"`,
-                            //         views: {
-                            //             today: 0,
-                            //             week: 0,
-                            //             all: 0
-                            //         }
-                            //     })
-                            // }
-                            return options
-                        }}
-                    />
-                </FormControl>
-            </Grid>
-            <Grid>
-            </Grid>
-        </Grid>
+        <div className="fixed top-16 w-72">
+            <Combobox value={selected} onChange={setSelected}>
+                <div className="relative mt-1">
+                    <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 focus-visible:ring-offset-2 focus-visible:ring-offset-teal-300 sm:text-sm">
+                        <Combobox.Input
+                            className="w-full border-none py-2 pl-3 pr-10 text-sm leading-5 text-gray-900 focus:ring-0"
+                            displayValue={(person: Person) => person.name}
+                            onChange={(event) => setQuery(event.target.value)}
+                        />
+                        <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
+                        </Combobox.Button>
+                    </div>
+                    <Transition
+                        as={Fragment}
+                        leave="transition ease-in duration-100"
+                        leaveFrom="opacity-100"
+                        leaveTo="opacity-0"
+                        afterLeave={() => setQuery('')}
+                    >
+                        <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm">
+                            {filteredPeople.length === 0 && query !== '' ? (
+                                <div className="relative cursor-default select-none py-2 px-4 text-gray-700">
+                                    Nothing found.
+                                </div>
+                            ) : (
+                                filteredPeople.map((person) => (
+                                    <Combobox.Option
+                                        key={person.id}
+                                        className={({ active }) =>
+                                            `relative cursor-default select-none py-2 pl-10 pr-4 ${active ? 'bg-teal-600 text-white' : 'text-gray-900'
+                                            }`
+                                        }
+                                        value={person}
+                                    >
+                                        {({ selected, active }) => (
+                                            <>
+                                                <span
+                                                    className={`block truncate ${selected ? 'font-medium' : 'font-normal'
+                                                        }`}
+                                                >
+                                                    {person.name}
+                                                </span>
+                                                {selected ? (
+                                                    <span
+                                                        className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? 'text-white' : 'text-teal-600'
+                                                            }`}
+                                                    >
+                                                    </span>
+                                                ) : null}
+                                            </>
+                                        )}
+                                    </Combobox.Option>
+                                ))
+                            )}
+                        </Combobox.Options>
+                    </Transition>
+                </div>
+            </Combobox>
+        </div>
     )
 }

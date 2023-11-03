@@ -1,6 +1,7 @@
 #![feature(str_split_remainder)]
 #![feature(let_chains)]
 #![feature(async_closure)]
+#![feature(const_trait_impl)]
 
 pub mod api;
 pub mod cli;
@@ -16,7 +17,6 @@ pub mod worker;
 
 use std::fs::read_to_string;
 use std::{
-    collections::HashMap,
     fs::{File, OpenOptions},
     sync::Arc,
 };
@@ -73,6 +73,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         key_file,
         oidc_providers,
         oauth_redirect_uri: oauth_redirect_endpoint,
+        login_path,
     }: cli::Commands = cli.command
     else {
         unreachable!();
@@ -104,14 +105,18 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         }
     };
 
+    let oidc_providers = oidc::provider::populate_provider_metadata(oidc_providers).await;
+
     let state = web::Data::new(state::AppState {
         rustlinks: Arc::new(RwLock::new(Default::default())),
         etcd_client: Arc::new(etcd_client),
         revision: Arc::new(RwLock::new(0)),
         links_file: Arc::new(RwLock::new(links_file)),
         read_only: cli.global.read_only,
-        oauth_redirect_endpoint: Arc::new(oauth_redirect_endpoint.clone()),
+        oauth_redirect_endpoint: oauth_redirect_endpoint.clone(),
         js_source: Arc::new(RwLock::new(read_to_string("./src/ui/dist/index.js")?)),
+        oidc_providers: Arc::new(RwLock::new(oidc_providers)),
+        login_path: login_path.clone(),
     });
     let worker = Box::new(Worker {
         state: state.clone(),
@@ -133,6 +138,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
                 web::scope("/api/v1")
                     .service(web::scope("/health").service(api::v1::health::check))
                     .service(
+                        // TODO: parse bearer auth middleware
                         web::scope("/links")
                             .service(api::v1::links::create_rustlink)
                             .service(api::v1::links::delete_rustlink)
@@ -141,6 +147,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
                     .service(web::scope("/oauth")), //TODO: re-work oauth functions
             )
             .service(web::resource(url.path()).route(web::get().to(api::v1::oauth::callback)))
+            .service(web::scope(login_path.as_str()).service(ui::route::index))
             .service(Files::new("/_ui/styles", "./src/ui/dist/styles").show_files_listing())
             .service(Files::new("/_ui/images", "./src/ui/dist/images").show_files_listing())
             .service(Files::new("/_ui/scripts", "./src/ui/dist/scripts").show_files_listing())
