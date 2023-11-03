@@ -16,6 +16,7 @@ export const Index = (params: string | undefined): string => {
    <meta name="viewport" content="width=device-width, initial-scale=1.0">
    <meta http-equiv="X-UA-Compatible" content="ie-edge">
    <title>Reactix</title>
+   
    ${helmetData.title.toString()}
    ${helmetData.meta.toString()}
    <link rel="stylesheet" href="./_ui/styles/ssr.css">

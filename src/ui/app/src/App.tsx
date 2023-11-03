@@ -21,6 +21,10 @@ const App: React.FC<Partial<AppProps>> = ({ login_path, oidc_providers, oauth_re
       return [provider.provider_name, new OidcClient(oidcSettings)]
    }) || []
 
+   const LoginComponent = () => {
+      return <Login oidc_clients={oidc_clients} />
+   }
+
    return (
       <>
          <Helmet>
@@ -29,8 +33,8 @@ const App: React.FC<Partial<AppProps>> = ({ login_path, oidc_providers, oauth_re
             <link rel='icon' type='image/png' href={favicon} />
          </Helmet>
          <Switch>
-            <Route path='/' component={Home} />
-            {/* <Route path={login_path ?? '/login'} element={<Login oidc_clients={oidc_clients} />} /> */}
+            <Route exact path='/' component={Home} />
+            <Route path='/login' component={LoginComponent} />
             <Route path='*' component={NotFound} />
          </Switch>
       </>
