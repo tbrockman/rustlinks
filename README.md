@@ -22,7 +22,6 @@ instead, we can synchronize changes in the background, and resolve links locally
 - [ ] automatic link pruning
   - [ ] prunes links which return 404s
   - [ ] prunes links which haven't been used in a while
-- [ ] saml
 
 ## development
 
@@ -70,12 +69,13 @@ cargo run -- start --cert-file cert.pem --key-file key.pem --port 443
 
 - [ ] tests: CLI, unit, and integration tests
 - [ ] a React UI for CRUD'ing link aliases
+- [ ] configurable URL fallback
 - [ ] OAuth
 - [ ] limit link storage (to not break `etcd` or unnecessarily store links which likely won't be used)
 - [ ] distinguish readers vs. writers
   - [ ] writers manage the `rustlinks` `etcd` namespace (e.g. adds/removes links)
   - [ ] readers watch the `rustlinks` `etcd` namespace for changes
-- [ ] allow installation as service
+- [ ] make service/daemon installation simpler
 - [ ] benchmarking/load test
   - [ ] what happens if we insert 100k aliases and then start the program
   - [ ] what happens if we insert 100k aliases while the program is running
