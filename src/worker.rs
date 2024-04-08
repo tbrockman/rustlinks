@@ -24,8 +24,8 @@ pub struct Worker {
 }
 
 // TODO:
-// At some point, it might make sense to re-write this to be more generic
-// to allow swapping the backend for a different storage implementation
+// At some point, it might make sense to re-write this to be generic over the
+// backend to allow swapping the storage layer for a different implementation
 // like Postgres, or MySQL, or Redis, or whatever
 
 impl Worker {

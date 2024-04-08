@@ -2,6 +2,7 @@
 #![feature(let_chains)]
 #![feature(async_closure)]
 #![feature(const_trait_impl)]
+#![feature(stmt_expr_attributes)]
 
 pub mod api;
 pub mod cli;
@@ -71,9 +72,6 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         data_dir,
         cert_file,
         key_file,
-        oidc_providers,
-        oauth_redirect_uri: oauth_redirect_endpoint,
-        login_path,
     }: cli::Commands = cli.command
     else {
         unreachable!();
@@ -105,6 +103,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         }
     };
 
+    #[cfg(features = "oauth")]
     let oidc_providers = oidc::provider::populate_provider_metadata(oidc_providers).await;
 
     let state = web::Data::new(state::AppState {
@@ -113,16 +112,22 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         revision: Arc::new(RwLock::new(0)),
         links_file: Arc::new(RwLock::new(links_file)),
         read_only: cli.global.read_only,
+        #[cfg(features = "oauth")]
         oauth_redirect_endpoint: oauth_redirect_endpoint.clone(),
-        js_source: Arc::new(RwLock::new(read_to_string("./src/ui/dist/index.js")?)),
+        #[cfg(features = "oauth")]
         oidc_providers: Arc::new(RwLock::new(oidc_providers)),
+        #[cfg(features = "oauth")]
         login_path: login_path.clone(),
+        #[cfg(features = "ui")]
+        js_source: Arc::new(RwLock::new(read_to_string("./src/ui/dist/index.js")?)),
     });
     let worker = Box::new(Worker {
         state: state.clone(),
         cancel: Arc::new(Mutex::new(None)),
         sleep: Arc::new(Mutex::new(None)),
     });
+
+    #[cfg(features = "oauth")]
     let url = match Url::parse(oauth_redirect_endpoint.as_str()) {
         Ok(u) => u,
         Err(e) => {
@@ -132,34 +137,52 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
     };
 
     let server = HttpServer::new(move || {
-        App::new()
-            .app_data(state.clone())
+        let mut api = web::scope("/api/v1")
+            .service(web::scope("/health").service(api::v1::health::check))
             .service(
-                web::scope("/api/v1")
-                    .service(web::scope("/health").service(api::v1::health::check))
-                    .service(
-                        // TODO: parse bearer auth middleware
-                        web::scope("/links")
-                            .service(api::v1::links::create_rustlink)
-                            .service(api::v1::links::delete_rustlink)
-                            .service(api::v1::links::get_rustlinks),
-                    )
-                    .service(web::scope("/oauth")), //TODO: re-work oauth functions
-            )
-            .service(web::resource(url.path()).route(web::get().to(api::v1::oauth::callback)))
-            .service(web::scope(login_path.as_str()).service(ui::route::index))
-            .service(Files::new("/_ui/styles", "./src/ui/dist/styles").show_files_listing())
-            .service(Files::new("/_ui/images", "./src/ui/dist/images").show_files_listing())
-            .service(Files::new("/_ui/scripts", "./src/ui/dist/scripts").show_files_listing())
-            .service(web::scope("/").service(ui::route::index))
+                // TODO: parse bearer auth middleware
+                web::scope("/links")
+                    .service(api::v1::links::create_rustlink)
+                    .service(api::v1::links::delete_rustlink)
+                    .service(api::v1::links::get_rustlinks),
+            );
+
+        #[cfg(features = "oauth")]
+        {
+            api = api.service(web::scope("/oauth"));
+        }
+
+        let mut app = App::new()
+            .app_data(state.clone())
+            .service(api)
             .service(redirect::redirect)
             .wrap(RequestMetrics::default())
-            .wrap(RequestTracing::new())
+            .wrap(RequestTracing::new());
+
+        #[cfg(features = "oauth")]
+        {
+            app = app
+                .service(web::resource(url.path()).route(web::get().to(api::v1::oauth::callback)))
+                .service(web::scope(login_path.as_str()).service(ui::route::index));
+        }
+
+        #[cfg(features = "ui")]
+        {
+            app = app
+                .service(web::scope("/").service(ui::route::index))
+                .service(Files::new("/_ui/styles", "./src/ui/dist/styles").show_files_listing())
+                .service(Files::new("/_ui/images", "./src/ui/dist/images").show_files_listing())
+                .service(Files::new("/_ui/scripts", "./src/ui/dist/scripts").show_files_listing())
+        }
+
+        return app;
     });
 
     let server_future: Server;
 
-    if let Some(cert) = cert_file && let Some(key) = key_file {
+    if let Some(cert) = cert_file
+        && let Some(key) = key_file
+    {
         let config = tls::load_rustls_config(cert, key)?;
         server_future = server.bind_rustls_021((hostname, port), config)?.run();
     } else {

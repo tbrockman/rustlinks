@@ -7,7 +7,16 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use super::RustlinkAlias;
-use crate::{oidc, rustlink};
+#[cfg(features = "oauth")]
+use crate::oidc;
+use crate::rustlink;
+
+#[cfg(features = "oauth")]
+pub struct OAuthState {
+    pub(crate) oauth_redirect_endpoint: String,
+    pub(crate) oidc_providers: Arc<RwLock<Vec<oidc::provider::OIDCProvider>>>,
+    pub(crate) login_path: String,
+}
 
 pub struct AppState {
     pub(crate) rustlinks: Arc<RwLock<HashMap<RustlinkAlias, rustlink::Rustlink>>>,
@@ -15,10 +24,8 @@ pub struct AppState {
     pub(crate) etcd_client: Arc<Client>,
     pub(crate) links_file: Arc<RwLock<Option<File>>>,
     pub(crate) read_only: bool,
-    pub(crate) oauth_redirect_endpoint: String,
-    pub(crate) js_source: Arc<RwLock<String>>,
-    pub(crate) oidc_providers: Arc<RwLock<Vec<oidc::provider::OIDCProvider>>>,
-    pub(crate) login_path: String,
+    #[cfg(feature = "ui")]
+    pub(crate) js_source: Arc<RwLock<Option<String>>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

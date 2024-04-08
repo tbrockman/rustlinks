@@ -1,4 +1,4 @@
-import { OIDCProvider } from "src/auth"
+import { OIDCProvider } from "../auth"
 
 export type AppProps = {
     location: any,
