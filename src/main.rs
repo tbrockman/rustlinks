@@ -103,7 +103,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         }
     };
 
-    #[cfg(features = "oauth")]
+    #[cfg(feature = "oauth")]
     let oidc_providers = oidc::provider::populate_provider_metadata(oidc_providers).await;
 
     let state = web::Data::new(state::AppState {
@@ -112,13 +112,13 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         revision: Arc::new(RwLock::new(0)),
         links_file: Arc::new(RwLock::new(links_file)),
         read_only: cli.global.read_only,
-        #[cfg(features = "oauth")]
+        #[cfg(feature = "oauth")]
         oauth_redirect_endpoint: oauth_redirect_endpoint.clone(),
-        #[cfg(features = "oauth")]
+        #[cfg(feature = "oauth")]
         oidc_providers: Arc::new(RwLock::new(oidc_providers)),
-        #[cfg(features = "oauth")]
+        #[cfg(feature = "oauth")]
         login_path: login_path.clone(),
-        #[cfg(features = "ui")]
+        #[cfg(feature = "ui")]
         js_source: Arc::new(RwLock::new(read_to_string("./src/ui/dist/index.js")?)),
     });
     let worker = Box::new(Worker {
@@ -127,7 +127,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         sleep: Arc::new(Mutex::new(None)),
     });
 
-    #[cfg(features = "oauth")]
+    #[cfg(feature = "oauth")]
     let url = match Url::parse(oauth_redirect_endpoint.as_str()) {
         Ok(u) => u,
         Err(e) => {
@@ -147,7 +147,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
                     .service(api::v1::links::get_rustlinks),
             );
 
-        #[cfg(features = "oauth")]
+        #[cfg(feature = "oauth")]
         {
             api = api.service(web::scope("/oauth"));
         }
@@ -159,14 +159,14 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
             .wrap(RequestMetrics::default())
             .wrap(RequestTracing::new());
 
-        #[cfg(features = "oauth")]
+        #[cfg(feature = "oauth")]
         {
             app = app
                 .service(web::resource(url.path()).route(web::get().to(api::v1::oauth::callback)))
                 .service(web::scope(login_path.as_str()).service(ui::route::index));
         }
 
-        #[cfg(features = "ui")]
+        #[cfg(feature = "ui")]
         {
             app = app
                 .service(web::scope("/").service(ui::route::index))
@@ -174,7 +174,6 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
                 .service(Files::new("/_ui/images", "./src/ui/dist/images").show_files_listing())
                 .service(Files::new("/_ui/scripts", "./src/ui/dist/scripts").show_files_listing())
         }
-
         return app;
     });
 

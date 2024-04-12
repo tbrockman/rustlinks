@@ -1,9 +1,7 @@
-use std::{path::PathBuf, str::FromStr, string::ParseError};
+use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-
-use crate::{errors::RustlinksError, oidc, util::password_prompt};
 
 /// A simple application for managing short links
 /// For debug logs, set RUST_LOG=debug
@@ -94,13 +92,13 @@ pub enum Commands {
             long,
             default_value = "https://rustlinks.theo.lol/api/v1/oauth/callback"
         )]
-        #[cfg(features = "oauth")]
+        #[cfg(feature = "oauth")]
         oauth_redirect_uri: String, // TODO: fix host vs path
 
         /// TODO:
         #[arg(long, default_value = "/login")]
         // TODO: same as above
-        #[cfg(features = "oauth")]
+        #[cfg(feature = "oauth")]
         login_path: String,
 
         /// Specify any OIDC providers the server will support using a
@@ -110,7 +108,7 @@ pub enum Commands {
         ///
         /// `/api/v1/rustlinks` endpoints will be guarded by OIDC authentication
         #[arg(long, num_args = 0..)]
-        #[cfg(features = "oauth")]
+        #[cfg(feature = "oauth")]
         oidc_providers: Vec<oidc::provider::OIDCProvider>,
     },
     /// Setup the application, automatically performs certificate

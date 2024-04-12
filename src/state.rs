@@ -7,11 +7,11 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use super::RustlinkAlias;
-#[cfg(features = "oauth")]
+#[cfg(feature = "oauth")]
 use crate::oidc;
 use crate::rustlink;
 
-#[cfg(features = "oauth")]
+#[cfg(feature = "oauth")]
 pub struct OAuthState {
     pub(crate) oauth_redirect_endpoint: String,
     pub(crate) oidc_providers: Arc<RwLock<Vec<oidc::provider::OIDCProvider>>>,

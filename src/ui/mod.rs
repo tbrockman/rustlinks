@@ -1,2 +1,2 @@
-#[cfg(features = "ui")]
+#[cfg(feature = "ui")]
 pub mod route;
