@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 use std::{fs::File, io::BufReader};
 
-use rustls::{Certificate, PrivateKey, ServerConfig};
+use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
+use rustls::ServerConfig;
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
 use crate::errors::RustlinksError;
@@ -13,9 +14,7 @@ pub fn load_rustls_config(
     key_file_path: PathBuf,
 ) -> Result<rustls::ServerConfig, RustlinksError> {
     // init server config builder with safe defaults
-    let config = ServerConfig::builder()
-        .with_safe_defaults()
-        .with_no_client_auth();
+    let config = ServerConfig::builder().with_no_client_auth();
 
     // load TLS key/cert files
     let cert_file = File::open(cert_file_path)?;
@@ -24,15 +23,16 @@ pub fn load_rustls_config(
     let key_buf = &mut BufReader::new(key_file);
 
     // convert files to key/cert objects
-    let cert_chain = certs(cert_buf)
-        .unwrap()
+    let cert_chain = certs(cert_buf).into_iter().filter_map(|c| c.ok()).collect();
+    let mut keys: Vec<PrivateKeyDer> = pkcs8_private_keys(key_buf)
         .into_iter()
-        .map(Certificate)
-        .collect();
-    let mut keys: Vec<PrivateKey> = pkcs8_private_keys(key_buf)
-        .unwrap()
-        .into_iter()
-        .map(PrivateKey)
+        .filter_map(|k| {
+            if let Ok(key) = k {
+                Some(PrivateKeyDer::from(key))
+            } else {
+                None
+            }
+        })
         .collect();
 
     match keys.is_empty() {

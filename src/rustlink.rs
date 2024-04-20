@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use tera::Context;
 use urlencoding::encode;
 
+use crate::errors::{RustlinkTest, RustlinkTestError, RustlinksError};
+
 lazy_static::lazy_static!(
     static ref PAREN_REPLACE: Regex = Regex::new(r"\{.*\}").unwrap();
     static ref PAREN_REGEX: Regex = Regex::new(r"[\{\}]").unwrap();
@@ -126,6 +128,26 @@ impl Rustlink {
             #[cfg(feature = "tera")]
             RustlinkType::Tera => self.render_tera(params),
         }
+    }
+
+    pub fn test(&self) -> Result<(), RustlinkTestError> {
+        // TODO: check whether we can determine the number of params required
+        // for now this dumb test suffices
+        let tests = vec![
+            vec![],                     // 0 params
+            vec!["rust"],               // 1 param
+            vec!["rust", "is", "cool"], // 3 params
+        ];
+
+        for test in tests {
+            if let Err(e) = self.render(test.clone()) {
+                return Err(RustlinkTestError::RustlinkTestFailed(
+                    e.to_string(),
+                    RustlinkTest { params: test },
+                ));
+            }
+        }
+        Ok(())
     }
 }
 

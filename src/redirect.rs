@@ -11,52 +11,48 @@ pub async fn redirect(
     state: web::Data<state::AppState>,
     path: web::Path<String>,
 ) -> Either<web::Redirect, HttpResponse> {
-    let tracer = global::tracer("redirect");
-    tracer
-        .in_span("render-url-template-and-redirect", async move |_| {
-            let full = path.into_inner();
-            let mut split = full.split(" ");
-            let alias = split.next().unwrap();
-            let params: Vec<&str> = split.collect();
-            let rustlinks = state.rustlinks.read().await;
+    let rustlinks = state.rustlinks.read().await;
 
-            get_active_span(|span| match rustlinks.get(alias) {
-                Some(rustlink) => {
-                    if let Ok(url) = rustlink.render(params.clone()) {
-                        // Increment counter for this alias
-                        let meter = global::meter("");
-                        let builder = meter.u64_counter("rustlinks.redirects");
-                        let counter = builder.init();
-                        counter.add(
-                            1,
-                            [opentelemetry::KeyValue::new(
-                                "rustlinks.alias",
-                                alias.to_string(),
-                            )]
-                            .as_ref(),
-                        );
-                        // Attach alias metadata to span
-                        span.set_attribute(opentelemetry::KeyValue::new(
+    let tracer = global::tracer("redirect");
+    tracer.in_span("render-url-template-and-redirect", move |_| {
+        let full = path.into_inner();
+        let mut split = full.split(" ");
+        let alias = split.next().unwrap();
+        let params: Vec<&str> = split.collect();
+
+        get_active_span(|span| match rustlinks.get(alias) {
+            Some(rustlink) => {
+                if let Ok(url) = rustlink.render(params.clone()) {
+                    // Increment counter for this alias
+                    let meter = global::meter("");
+                    let builder = meter.u64_counter("rustlinks.redirects");
+                    let counter = builder.init();
+                    counter.add(
+                        1,
+                        [opentelemetry::KeyValue::new(
                             "rustlinks.alias",
                             alias.to_string(),
-                        ));
-                        span.set_attribute(opentelemetry::KeyValue::new(
-                            "rustlinks.url",
-                            url.clone(),
-                        ));
-                        span.set_attribute(opentelemetry::KeyValue::new(
-                            "rustlinks.params",
-                            params.join(" ").to_string(),
-                        ));
-                        Either::Left(web::Redirect::to(url).permanent())
-                    } else {
-                        Either::Right(HttpResponse::InternalServerError().finish())
-                    }
+                        )]
+                        .as_ref(),
+                    );
+                    // Attach alias metadata to span
+                    span.set_attribute(opentelemetry::KeyValue::new(
+                        "rustlinks.alias",
+                        alias.to_string(),
+                    ));
+                    span.set_attribute(opentelemetry::KeyValue::new("rustlinks.url", url.clone()));
+                    span.set_attribute(opentelemetry::KeyValue::new(
+                        "rustlinks.params",
+                        params.join(" ").to_string(),
+                    ));
+                    Either::Left(web::Redirect::to(url).permanent())
+                } else {
+                    Either::Right(HttpResponse::InternalServerError().finish())
                 }
-                None => Either::Right(HttpResponse::NotFound().finish()),
-            })
+            }
+            None => Either::Right(HttpResponse::NotFound().finish()),
         })
-        .await
+    })
 }
 
 #[cfg(test)]

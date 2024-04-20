@@ -3,6 +3,11 @@ use std;
 use etcd_rs;
 use thiserror::Error;
 
+#[derive(Debug)]
+pub struct RustlinkTest<'a> {
+    pub params: Vec<&'a str>,
+}
+
 #[derive(Error, Debug)]
 pub enum RustlinksError {
     #[error("etcd error: {0}")]
@@ -23,4 +28,10 @@ pub enum RustlinksError {
     OAuthEndpointParseError(#[from] url::ParseError),
     #[error("unknown oidc provider: {0}")]
     UnknownOIDCProvider(String),
+}
+
+#[derive(Error, Debug)]
+pub enum RustlinkTestError<'a> {
+    #[error("failed rustlink test: {0}")]
+    RustlinkTestFailed(String, RustlinkTest<'a>),
 }

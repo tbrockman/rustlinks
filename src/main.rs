@@ -23,12 +23,17 @@ use std::{
 };
 
 use actix_files::Files;
-use actix_web::{dev::Server, web, App, HttpServer};
+use actix_web::{
+    dev::Server,
+    web::{self, Data},
+    App, HttpServer,
+};
 use actix_web_opentelemetry::RequestMetrics;
 use actix_web_opentelemetry::RequestTracing;
 use errors::RustlinksError;
 use etcd_rs::{Client, ClientConfig, Endpoint};
-use opentelemetry::{global, runtime::TokioCurrentThread};
+use opentelemetry::global;
+use opentelemetry_sdk::runtime::TokioCurrentThread;
 use tokio::sync::{Mutex, RwLock};
 use url::Url;
 use worker::Worker;
@@ -153,7 +158,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         }
 
         let mut app = App::new()
-            .app_data(state.clone())
+            .app_data(Data::clone(&state))
             .service(api)
             .service(redirect::redirect)
             .wrap(RequestMetrics::default())
@@ -183,7 +188,7 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         && let Some(key) = key_file
     {
         let config = tls::load_rustls_config(cert, key)?;
-        server_future = server.bind_rustls_021((hostname, port), config)?.run();
+        server_future = server.bind_rustls_0_22((hostname, port), config)?.run();
     } else {
         server_future = server.bind((hostname, port))?.run();
     }
