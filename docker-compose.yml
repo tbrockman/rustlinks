@@ -24,8 +24,11 @@ services:
       --initial-cluster-token etcd-cluster-1
       --initial-cluster 'etcd0=http://192.168.12.50:2380'
       --initial-cluster-state new
-      --auto-compaction-retention=1
+      --auto-compaction-retention=7
       --data-dir=/etcd-data
+      --max-txn-ops 4096
+      --max-request-bytes 10485760
+
     volumes:
       - ./.etcd/data:/etcd-data
       # - /usr/share/ca-certificates/:/etc/ssl/certs

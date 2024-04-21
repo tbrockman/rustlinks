@@ -5,7 +5,6 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "tera")]
 use tera::Context;
-use urlencoding::encode;
 
 use crate::errors::{RustlinkTest, RustlinkTestError};
 

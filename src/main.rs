@@ -18,13 +18,8 @@ pub mod util;
 pub mod worker;
 #[cfg(feature = "ui")]
 use std::fs::read_to_string;
-use std::{
-    fs::{File, OpenOptions},
-    sync::Arc,
-};
+use std::sync::Arc;
 
-#[cfg(feature = "oauth")]
-use actix_files::Files;
 use actix_web::{
     dev::Server,
     web::{self, Data},
@@ -37,14 +32,12 @@ use etcd_rs::{Client, ClientConfig, Endpoint};
 use heed::EnvOpenOptions;
 use opentelemetry::global;
 use opentelemetry_sdk::runtime::TokioCurrentThread;
-use tokio::sync::{Mutex, RwLock};
-#[cfg(feature = "oauth")]
-use url::Url;
+use tokio::sync::Mutex;
+#[cfg(any(feature = "ui", feature = "oauth"))]
+use tokio::sync::RwLock;
 use worker::Worker;
-
-type RustlinkAlias = String;
-
-const DB_NAME: &str = "links.db";
+#[cfg(feature = "oauth")]
+use {actix_files::Files, url::Url};
 
 async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
     // Enable tracing

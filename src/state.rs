@@ -1,15 +1,12 @@
-use std::collections::HashMap;
-use std::fs::File;
 use std::sync::Arc;
 
 use etcd_rs::Client;
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "oauth")]
 use tokio::sync::RwLock;
 
-use super::RustlinkAlias;
 #[cfg(feature = "oauth")]
 use crate::oidc;
-use crate::{rustlink, storage::RustlinkStore};
+use crate::storage::RustlinkStore;
 
 #[cfg(feature = "oauth")]
 pub struct OAuthState {

@@ -48,11 +48,28 @@ cargo run -- start
 
 ## tls
 
+on macOS, you may need to create an interface with the IP address you've chosen to start the service:
+
+```shell
+sudo ifconfig lo0 alias 127.13.37.1 up
+```
+
+modify `/etc/hosts` to include the following line:
+
+```
+127.13.37.1 rs # or whichever IP you've chosen to bind the server to
+```
+
 install [mkcert](https://github.com/FiloSottile/mkcert#installation) (if you don't already have a certificate authority)
 
 ```shell
 mkcert -install
 mkcert -key-file key.pem -cert-file cert.pem rs # [...and any other hostnames]
+```
+
+finally, start the server with the `--cert-file` and `--key-file` flags:
+
+```shell
 cargo run -- start --cert-file cert.pem --key-file key.pem --port 443
 ```
 
@@ -67,6 +84,7 @@ cargo run -- start --cert-file cert.pem --key-file key.pem --port 443
 
 ## todo
 
+- [ ] refresh etcd authentication before it expires
 - [ ] tests: CLI, unit, and integration tests
 - [ ] a React UI for CRUD'ing link aliases
 - [ ] configurable URL fallback
