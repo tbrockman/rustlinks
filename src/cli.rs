@@ -34,7 +34,7 @@ pub struct GlobalOpts {
         use_value_delimiter = true,
         default_value = "http://127.0.0.1:2379"
     )]
-    pub(crate) etcd_endpoints: Option<String>,
+    pub(crate) etcd_endpoints: String,
 
     /// Path to CA certificate to be used for communication with etcd (if
     /// passed, TLS will be used)
@@ -73,9 +73,13 @@ pub enum Commands {
         #[arg(short, long, default_value = "8080")]
         port: u16,
 
-        /// Path to a directory to persist Rustlink data
-        #[arg(long, default_value = ".rustlinks/")]
-        data_dir: PathBuf,
+        /// Path to Rustlink database on disk
+        #[arg(long, default_value = ".rustlinks/data.db")]
+        db_path: PathBuf,
+
+        /// Max size of LMDB memory map in bytes
+        #[arg(long, default_value = "104857600")]
+        db_map_size: usize,
 
         /// Certificate .PEM to be used by the server for TLS
         /// Specify both '--cert-file' and '--key-file' to enable TLS
@@ -158,11 +162,11 @@ pub enum Commands {
 #[cfg(test)]
 mod unit_tests {
     #[test]
-    fn test_serialization() {
+    fn test_serialization() -> anyhow::Result<()> {
         use super::*;
         let opts = RustlinksOpts {
             global: GlobalOpts {
-                etcd_endpoints: Some("http://".to_string()),
+                etcd_endpoints: "http://".to_string(),
                 etcd_ca_cert: None,
                 etcd_username: None,
                 etcd_password: None,
@@ -172,12 +176,14 @@ mod unit_tests {
             command: Commands::Start {
                 hostname: "".to_string(),
                 port: 0,
-                data_dir: PathBuf::from(""),
+                db_path: PathBuf::from(""),
+                db_map_size: 0,
                 cert_file: None,
                 key_file: None,
             },
         };
-        let serialized = serde_json::to_string(&opts).unwrap();
+        let serialized = serde_json::to_string(&opts)?;
         println!("{}", serialized);
+        Ok(())
     }
 }

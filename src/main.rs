@@ -11,17 +11,19 @@ pub mod oidc;
 pub mod redirect;
 pub mod rustlink;
 pub mod state;
+pub mod storage;
 pub mod tls;
 pub mod ui;
 pub mod util;
 pub mod worker;
-
+#[cfg(feature = "ui")]
 use std::fs::read_to_string;
 use std::{
     fs::{File, OpenOptions},
     sync::Arc,
 };
 
+#[cfg(feature = "oauth")]
 use actix_files::Files;
 use actix_web::{
     dev::Server,
@@ -32,20 +34,21 @@ use actix_web_opentelemetry::RequestMetrics;
 use actix_web_opentelemetry::RequestTracing;
 use errors::RustlinksError;
 use etcd_rs::{Client, ClientConfig, Endpoint};
+use heed::EnvOpenOptions;
 use opentelemetry::global;
 use opentelemetry_sdk::runtime::TokioCurrentThread;
 use tokio::sync::{Mutex, RwLock};
+#[cfg(feature = "oauth")]
 use url::Url;
 use worker::Worker;
 
 type RustlinkAlias = String;
 
-const LINK_FILENAME: &str = "links.json";
+const DB_NAME: &str = "links.db";
 
 async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
     // Enable tracing
     // TODO: make configurable
-
     let _ = opentelemetry_otlp::new_pipeline()
         .tracing()
         .with_exporter(opentelemetry_otlp::new_exporter().tonic())
@@ -53,7 +56,6 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
 
     // Enable metrics
     // TODO: make configurable
-
     let _ = opentelemetry_otlp::new_pipeline()
         .metrics(TokioCurrentThread)
         .with_exporter(opentelemetry_otlp::new_exporter().tonic())
@@ -63,18 +65,17 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
     let etcd_client = Client::connect(ClientConfig::new(
         cli.global
             .etcd_endpoints
-            .unwrap()
             .split(',')
             .map(|s| s.into())
             .collect::<Vec<Endpoint>>(),
     ))
-    .await
-    .unwrap();
+    .await?;
 
     let cli::Commands::Start {
         hostname,
         port,
-        data_dir,
+        db_path,
+        db_map_size,
         cert_file,
         key_file,
     }: cli::Commands = cli.command
@@ -82,40 +83,16 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         unreachable!();
     };
 
-    let links_filepath = data_dir.join(LINK_FILENAME);
+    std::fs::create_dir_all(&db_path)?;
 
-    match links_filepath.parent() {
-        Some(parent) => {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent)?;
-            }
-        }
-        _ => {}
-    }
-    let links_file: Option<File> = match OpenOptions::new()
-        .write(true)
-        .read(true)
-        .create(true)
-        .open(links_filepath.clone())
-    {
-        Ok(f) => Some(f),
-        Err(n) => {
-            eprint!(
-                "Error opening/creating links file at [{:?}]: {:?}",
-                links_filepath, n
-            );
-            None
-        }
-    };
+    let env = EnvOpenOptions::new().map_size(db_map_size).open(&db_path)?;
 
     #[cfg(feature = "oauth")]
     let oidc_providers = oidc::provider::populate_provider_metadata(oidc_providers).await;
 
     let state = web::Data::new(state::AppState {
-        rustlinks: Arc::new(RwLock::new(Default::default())),
         etcd_client: Arc::new(etcd_client),
-        revision: Arc::new(RwLock::new(0)),
-        links_file: Arc::new(RwLock::new(links_file)),
+        rustlink_store: Arc::new(storage::LMDB::new(env)),
         read_only: cli.global.read_only,
         #[cfg(feature = "oauth")]
         oauth_redirect_endpoint: oauth_redirect_endpoint.clone(),

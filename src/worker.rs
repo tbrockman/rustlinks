@@ -12,7 +12,8 @@ use tokio::{sync::Mutex, time::sleep};
 
 use crate::{
     errors::RustlinksError,
-    state::{AppState, SerdeAppState},
+    rustlink::Rustlink,
+    state::AppState,
     util::{self, NAMESPACE},
 };
 
@@ -30,43 +31,6 @@ pub struct Worker {
 
 impl Worker {
     pub async fn start(&self) -> std::io::Result<()> {
-        {
-            let mut local_links_file = self.state.links_file.write().await;
-
-            if let Some(links_file) = local_links_file.as_mut() {
-                let mut buf: Vec<u8> = Vec::new();
-                let result = links_file.read_to_end(buf.as_mut());
-
-                if result.is_err() {
-                    eprintln!("Failed to read bytes from links file: {:?}", result.err())
-                } else {
-                    if buf.len() > 0 {
-                        let de: Result<SerdeAppState, serde_json::Error> =
-                            serde_json::from_slice(&buf);
-                        match de {
-                            Ok(disk_state) => {
-                                let mut rustlinks: tokio::sync::RwLockWriteGuard<
-                                    '_,
-                                    std::collections::HashMap<String, crate::rustlink::Rustlink>,
-                                > = self.state.rustlinks.write().await;
-                                rustlinks.extend(disk_state.rustlinks);
-                                *self.state.revision.write().await = disk_state.revision;
-                            }
-                            Err(e) => {
-                                eprintln!("Failed to deserialize links file: {:?}", e);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        match self.persist().await {
-            Ok(_) => {}
-            Err(e) => {
-                eprintln!("Failed to persist state to disk: {:?}", e);
-            }
-        };
-
         let mut stream: WatchStream;
         let mut backoff = 1;
 
@@ -76,7 +40,7 @@ impl Worker {
                 proto: ProtoWatchCreateRequest {
                     key: range.key,
                     range_end: range.range_end,
-                    start_revision: self.state.revision.read().await.clone(),
+                    start_revision: 0,
                     progress_notify: false,
                     filters: vec![],
                     prev_kv: false,
@@ -108,43 +72,29 @@ impl Worker {
                     println!("received event: {:?}", resp);
 
                     let futs = resp.events.into_iter().map(|event| async move {
-                        let alias = util::key_to_alias(event.kv.key_str());
-
-                        match event.event_type {
-                            etcd_rs::EventType::Put => {
-                                let value = event.kv.value;
-                                match serde_json::from_slice(&value) {
-                                    Ok(rustlink) => {
-                                        let mut rustlinks = self.state.rustlinks.write().await;
-                                        rustlinks.insert(alias, rustlink);
-
-                                        let mut revision = self.state.revision.write().await;
-                                        *revision = event.kv.mod_revision;
-                                        Ok(())
-                                    }
-                                    Err(err) => Err(err),
+                        if let Some(alias) = util::key_to_alias(event.kv.key_str()) {
+                            match event.event_type {
+                                etcd_rs::EventType::Put => {
+                                    let value = event.kv.value;
+                                    let rustlink = serde_json::from_slice::<Rustlink>(&value)?;
+                                    self.state.rustlink_store.set(&alias, &rustlink)
+                                }
+                                etcd_rs::EventType::Delete => {
+                                    // let mut revision =
+                                    // self.state.revision.write().await;
+                                    // *revision = event.kv.mod_revision;
+                                    self.state.rustlink_store.delete(&alias)
                                 }
                             }
-                            etcd_rs::EventType::Delete => {
-                                let mut rustlinks = self.state.rustlinks.write().await;
-                                rustlinks.remove(&alias);
-
-                                let mut revision = self.state.revision.write().await;
-                                *revision = event.kv.mod_revision;
-                                Ok(())
-                            }
+                        } else {
+                            Ok(())
                         }
                     });
                     let results = futures::future::join_all(futs).await;
-                    let acc: Result<Vec<()>, serde_json::Error> = results.into_iter().collect();
+                    let acc: Result<Vec<()>, RustlinksError> = results.into_iter().collect();
 
                     if acc.is_err() {
-                        eprintln!("failed to update links: {:?}", acc.err());
-                    }
-                    let result = self.persist().await;
-
-                    if result.is_err() {
-                        eprintln!("Failed to persist links to disk: {:?}", result.err());
+                        eprintln!("failed to process events: {:?}", acc.err());
                     }
                 }
                 WatchInbound::Interrupted(e) => {
@@ -184,22 +134,6 @@ impl Worker {
             println!("nothing to cancel");
         }
         Ok(())
-    }
-
-    async fn persist(&self) -> Result<(), std::io::Error> {
-        let serde_state = self.state.from().await;
-
-        if let Some(f) = self.state.links_file.write().await.as_mut() {
-            let string = serde_json::to_string(&serde_state)?;
-            f.set_len(0)?;
-            f.rewind()?;
-            f.write_all(string.as_bytes())
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "No links file to write to",
-            ))
-        }
     }
 
     async fn configure(&self) {}

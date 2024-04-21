@@ -1,11 +1,12 @@
+use anyhow::Result;
 use dialoguer::Password;
 
 pub const NAMESPACE: &str = "rustlinks/";
 
-pub fn key_to_alias(key: &str) -> String {
+pub fn key_to_alias(key: &str) -> Option<String> {
     let mut split = key.split('/');
     split.next();
-    split.remainder().unwrap().to_string()
+    split.remainder().map(|s| s.to_string())
 }
 
 pub fn alias_to_key(alias: &str) -> String {

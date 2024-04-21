@@ -4,11 +4,14 @@ use etcd_rs::{KeyValueOp, PutRequest};
 use crate::{rustlink::Rustlink, state::AppState, util};
 
 #[get("/")]
-pub async fn get_rustlinks(data: web::Data<AppState>) -> impl Responder {
+pub async fn get_rustlinks(state: web::Data<AppState>) -> impl Responder {
     // TODO: cursor-based pagination
     // TODO: search queries
-    let rustlinks = data.rustlinks.read().await;
-    return HttpResponse::Ok().json(rustlinks.values().collect::<Vec<&Rustlink>>());
+    if let Ok(rustlinks) = state.rustlink_store.list() {
+        return HttpResponse::Ok().json(rustlinks);
+    } else {
+        return HttpResponse::InternalServerError().body("Internal Server Error");
+    }
 }
 
 #[put("/{alias}")]

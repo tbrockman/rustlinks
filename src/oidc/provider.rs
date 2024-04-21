@@ -76,7 +76,9 @@ impl ProviderName {
         if let Some(provider) = URL_TO_PROVIDER.get(&trailing_removed) {
             return provider.clone();
         } else {
-            if let Ok(url) = url::Url::parse(&trailing_removed) && url.host_str().unwrap_or_default().ends_with("okta.com") {
+            if let Ok(url) = url::Url::parse(&trailing_removed)
+                && url.host_str().unwrap_or_default().ends_with("okta.com")
+            {
                 return ProviderName::Okta;
             } else {
                 return ProviderName::Unknown;
@@ -88,7 +90,7 @@ impl ProviderName {
 pub async fn populate_provider_metadata(providers: Vec<OIDCProvider>) -> Vec<OIDCProvider> {
     futures::future::join_all(providers.into_iter().map(async move |mut p| {
         p.provider_url = p.provider_url.trim_end_matches('/').to_string();
-        let issuer_url = openidconnect::IssuerUrl::new(p.provider_url.clone()).unwrap();
+        let issuer_url = openidconnect::IssuerUrl::new(p.provider_url.clone()).unwrap_or_default();
         let metadata_result =
             CoreProviderMetadata::discover_async(issuer_url, async_http_client).await;
         if let Err(e) = &metadata_result {

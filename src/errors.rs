@@ -1,6 +1,3 @@
-use std;
-
-use etcd_rs;
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -28,6 +25,10 @@ pub enum RustlinksError {
     OAuthEndpointParseError(#[from] url::ParseError),
     #[error("unknown oidc provider: {0}")]
     UnknownOIDCProvider(String),
+    #[error("lmdb error: {0}")]
+    LmdbError(#[from] heed::Error),
+    #[error("serde json error: {0}")]
+    SerdeError(#[from] serde_json::Error),
 }
 
 #[derive(Error, Debug)]

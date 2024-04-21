@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tera::Context;
 use urlencoding::encode;
 
-use crate::errors::{RustlinkTest, RustlinkTestError, RustlinksError};
+use crate::errors::{RustlinkTest, RustlinkTestError};
 
 lazy_static::lazy_static!(
     static ref PAREN_REPLACE: Regex = Regex::new(r"\{.*\}").unwrap();
@@ -25,16 +25,21 @@ pub enum RustlinkType {
     Tera = 2,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct Rustlink {
     pub url: String,
     #[serde(rename = "type")]
     pub _type: RustlinkType,
+    pub revision: i64,
 }
 
 impl Rustlink {
-    pub fn new(url: String, _type: RustlinkType) -> Self {
-        Rustlink { url, _type }
+    pub fn new(url: String, _type: RustlinkType, revision: i64) -> Self {
+        Rustlink {
+            url,
+            _type,
+            revision,
+        }
     }
 
     /// Example links:
@@ -211,7 +216,7 @@ mod unit_tests {
         ];
 
         for test in tests {
-            let rustlink = super::Rustlink::new(test.url, super::RustlinkType::LinkedIn);
+            let rustlink = super::Rustlink::new(test.url, super::RustlinkType::LinkedIn, 0);
             let rendered = rustlink.render(test.params);
             compare_results(test.description, rendered, test.expected);
         }
@@ -266,7 +271,7 @@ mod unit_tests {
         ];
 
         for test in tests {
-            let rustlink = super::Rustlink::new(test.url, super::RustlinkType::Glean);
+            let rustlink = super::Rustlink::new(test.url, super::RustlinkType::Glean, 0);
             let rendered = rustlink.render(test.params);
             compare_results(test.description, rendered, test.expected);
         }
@@ -318,7 +323,7 @@ https://keats.github.io/
         ];
 
         for test in tests {
-            let rustlink = super::Rustlink::new(test.url, super::RustlinkType::Tera);
+            let rustlink = super::Rustlink::new(test.url, super::RustlinkType::Tera, 0);
             let rendered = rustlink.render(test.params);
             compare_results(test.description, rendered, test.expected);
         }

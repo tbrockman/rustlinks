@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::{fs::File, io::BufReader};
 
-use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
+use rustls::pki_types::PrivateKeyDer;
 use rustls::ServerConfig;
 use rustls_pemfile::{certs, pkcs8_private_keys};
 

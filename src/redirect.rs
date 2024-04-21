@@ -1,57 +1,78 @@
-use actix_web::{get, web, Either, HttpResponse};
+use actix_web::{
+    get,
+    web::{Data, Path, Redirect},
+    Either, HttpResponse,
+};
+use anyhow::Result;
+use heed::types::{SerdeBincode, Str};
+use heed::Env;
 use opentelemetry::{
     global,
-    trace::{get_active_span, Tracer},
+    trace::{TraceContextExt, Tracer},
 };
 
-use crate::state;
+use crate::{rustlink::Rustlink, state};
+
+pub fn get_link_by_alias(db_env: &Env, alias: &str) -> Result<Option<Rustlink>> {
+    let rtxn = db_env.read_txn()?;
+    if let Some(db) = db_env.open_database::<Str, SerdeBincode<Rustlink>>(&rtxn, None)? {
+        let value = db.get(&rtxn, alias)?;
+        Ok(value)
+    } else {
+        Ok(None)
+    }
+}
 
 #[get("/{alias:.*}")]
 pub async fn redirect(
-    state: web::Data<state::AppState>,
-    path: web::Path<String>,
-) -> Either<web::Redirect, HttpResponse> {
-    let rustlinks = state.rustlinks.read().await;
-
+    state: Data<state::AppState>,
+    path: Path<String>,
+) -> Either<Redirect, HttpResponse> {
     let tracer = global::tracer("redirect");
-    tracer.in_span("render-url-template-and-redirect", move |_| {
+    tracer.in_span("render-url-template-and-redirect", move |cx| {
         let full = path.into_inner();
         let mut split = full.split(" ");
-        let alias = split.next().unwrap();
-        let params: Vec<&str> = split.collect();
+        let alias = if let Some(a) = split.next() {
+            a
+        } else {
+            return Either::Right(HttpResponse::BadRequest().finish());
+        };
 
-        get_active_span(|span| match rustlinks.get(alias) {
-            Some(rustlink) => {
-                if let Ok(url) = rustlink.render(params.clone()) {
-                    // Increment counter for this alias
-                    let meter = global::meter("");
-                    let builder = meter.u64_counter("rustlinks.redirects");
-                    let counter = builder.init();
-                    counter.add(
-                        1,
-                        [opentelemetry::KeyValue::new(
-                            "rustlinks.alias",
-                            alias.to_string(),
-                        )]
-                        .as_ref(),
-                    );
-                    // Attach alias metadata to span
-                    span.set_attribute(opentelemetry::KeyValue::new(
+        match state.rustlink_store.get(alias) {
+            Ok(Some(rustlink)) => {
+                let url = rustlink.url;
+                let params: Vec<&str> = split.collect();
+
+                // Increment counter for this alias
+                let meter = global::meter("");
+                let builder = meter.u64_counter("rustlinks.redirects");
+                let counter = builder.init();
+                counter.add(
+                    1,
+                    [opentelemetry::KeyValue::new(
                         "rustlinks.alias",
                         alias.to_string(),
-                    ));
-                    span.set_attribute(opentelemetry::KeyValue::new("rustlinks.url", url.clone()));
-                    span.set_attribute(opentelemetry::KeyValue::new(
-                        "rustlinks.params",
-                        params.join(" ").to_string(),
-                    ));
-                    Either::Left(web::Redirect::to(url).permanent())
-                } else {
-                    Either::Right(HttpResponse::InternalServerError().finish())
-                }
+                    )]
+                    .as_ref(),
+                );
+
+                // Attach alias metadata to span
+                let span = cx.span();
+                span.set_attribute(opentelemetry::KeyValue::new(
+                    "rustlinks.alias",
+                    alias.to_string(),
+                ));
+                span.set_attribute(opentelemetry::KeyValue::new("rustlinks.url", url.clone()));
+                span.set_attribute(opentelemetry::KeyValue::new(
+                    "rustlinks.params",
+                    params.join(" ").to_string(),
+                ));
+
+                Either::Left(Redirect::to(url).permanent())
             }
-            None => Either::Right(HttpResponse::NotFound().finish()),
-        })
+            Ok(None) => Either::Right(HttpResponse::NotFound().finish()),
+            Err(e) => Either::Right(HttpResponse::InternalServerError().body(e.to_string())),
+        }
     })
 }
 
@@ -61,9 +82,11 @@ mod integration_tests {
 
     use actix_web::{test, App};
     use etcd_rs::{Client, ClientConfig, Endpoint};
+    use heed::EnvOpenOptions;
     use tokio::sync::RwLock;
 
     use super::*;
+    use crate::storage::LMDB;
     use crate::{rustlink::Rustlink, state::AppState, RustlinkAlias};
 
     #[actix_web::test]
@@ -79,16 +102,19 @@ mod integration_tests {
             Rustlink {
                 url: "https://google.com/search?q=abcdefg".to_string(),
                 _type: crate::rustlink::RustlinkType::LinkedIn,
+                revision: 0,
             },
         );
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("rustlinks.db");
 
         let app = test::init_service(
             App::new()
-                .app_data(web::Data::new(AppState {
-                    rustlinks: Arc::new(RwLock::new(rustlinks)),
+                .app_data(Data::new(AppState {
                     etcd_client: Arc::new(client),
-                    links_file: Arc::new(RwLock::new(None)),
-                    revision: Arc::new(RwLock::new(0)),
+                    rustlink_store: Arc::new(LMDB::new(
+                        EnvOpenOptions::new().open(db_path).unwrap(),
+                    )),
                     read_only: true,
                 }))
                 .service(redirect),
@@ -116,16 +142,19 @@ mod integration_tests {
             Rustlink {
                 url: "https://google.com/search?q={}".to_string(),
                 _type: crate::rustlink::RustlinkType::LinkedIn,
+                revision: 0,
             },
         );
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("rustlinks.db");
 
         let app = test::init_service(
             App::new()
-                .app_data(web::Data::new(AppState {
-                    rustlinks: Arc::new(RwLock::new(rustlinks)),
+                .app_data(Data::new(AppState {
                     etcd_client: Arc::new(client),
-                    links_file: Arc::new(RwLock::new(None)),
-                    revision: Arc::new(RwLock::new(0)),
+                    rustlink_store: Arc::new(LMDB::new(
+                        EnvOpenOptions::new().open(db_path).unwrap(),
+                    )),
                     read_only: true,
                 }))
                 .service(redirect),
@@ -153,16 +182,19 @@ mod integration_tests {
             Rustlink {
                 url: "https://google.com/search?q=abcdefg".to_string(),
                 _type: crate::rustlink::RustlinkType::LinkedIn,
+                revision: 0,
             },
         );
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("rustlinks.db");
 
         let app = test::init_service(
             App::new()
-                .app_data(web::Data::new(AppState {
-                    rustlinks: Arc::new(RwLock::new(rustlinks)),
+                .app_data(Data::new(AppState {
                     etcd_client: Arc::new(client),
-                    links_file: Arc::new(RwLock::new(None)),
-                    revision: Arc::new(RwLock::new(0)),
+                    rustlink_store: Arc::new(LMDB::new(
+                        EnvOpenOptions::new().open(db_path).unwrap(),
+                    )),
                     read_only: true,
                 }))
                 .service(redirect),
@@ -190,16 +222,19 @@ mod integration_tests {
             Rustlink {
                 url: "https://google.com/search?q={}".to_string(),
                 _type: crate::rustlink::RustlinkType::LinkedIn,
+                revision: 0,
             },
         );
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("rustlinks.db");
 
         let app = test::init_service(
             App::new()
-                .app_data(web::Data::new(AppState {
-                    rustlinks: Arc::new(RwLock::new(rustlinks)),
+                .app_data(Data::new(AppState {
                     etcd_client: Arc::new(client),
-                    links_file: Arc::new(RwLock::new(None)),
-                    revision: Arc::new(RwLock::new(0)),
+                    rustlink_store: Arc::new(LMDB::new(
+                        EnvOpenOptions::new().open(db_path).unwrap(),
+                    )),
                     read_only: true,
                 }))
                 .service(redirect),
@@ -227,16 +262,19 @@ mod integration_tests {
             Rustlink {
                 url: "https://google.com/search?q={}".to_string(),
                 _type: crate::rustlink::RustlinkType::LinkedIn,
+                revision: 0,
             },
         );
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("rustlinks.db");
 
         let app = test::init_service(
             App::new()
-                .app_data(web::Data::new(AppState {
-                    rustlinks: Arc::new(RwLock::new(rustlinks)),
+                .app_data(Data::new(AppState {
                     etcd_client: Arc::new(client),
-                    links_file: Arc::new(RwLock::new(None)),
-                    revision: Arc::new(RwLock::new(0)),
+                    rustlink_store: Arc::new(LMDB::new(
+                        EnvOpenOptions::new().open(db_path).unwrap(),
+                    )),
                     read_only: true,
                 }))
                 .service(redirect),
@@ -264,16 +302,19 @@ mod integration_tests {
             Rustlink {
                 url: "https://google.com/search?q={}&a={}".to_string(),
                 _type: crate::rustlink::RustlinkType::LinkedIn,
+                revision: 0,
             },
         );
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("rustlinks.db");
 
         let app = test::init_service(
             App::new()
-                .app_data(web::Data::new(AppState {
-                    rustlinks: Arc::new(RwLock::new(rustlinks)),
+                .app_data(Data::new(AppState {
                     etcd_client: Arc::new(client),
-                    links_file: Arc::new(RwLock::new(None)),
-                    revision: Arc::new(RwLock::new(0)),
+                    rustlink_store: Arc::new(LMDB::new(
+                        EnvOpenOptions::new().open(db_path).unwrap(),
+                    )),
                     read_only: true,
                 }))
                 .service(redirect),
