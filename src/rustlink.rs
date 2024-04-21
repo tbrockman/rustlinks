@@ -52,24 +52,23 @@ impl Rustlink {
         }
 
         let joined = params.join(" ");
-        let extras = encode(&joined);
 
         if PAREN_REGEX.is_match(&self.url) {
-            let url = HAT_REGEX.replace_all(&self.url, extras);
+            let url = HAT_REGEX.replace_all(&self.url, joined);
             let replaced = PAREN_REGEX.replace_all(&url, "");
             return Ok(replaced.to_string());
         }
 
         if let Some(q_index) = self.url.find("?") {
             let mut url = self.url.clone();
-            url.insert_str(q_index, &extras);
+            url.insert_str(q_index + 1, format!("{}&", joined).as_str());
             Ok(url)
         } else if let Some(hash_index) = self.url.find("#") {
             let mut url = self.url.clone();
-            url.insert_str(hash_index, format!("?{}", extras).as_str());
+            url.insert_str(hash_index, format!("?{}", joined).as_str());
             Ok(url)
         } else {
-            Ok(format!("{}?{}", self.url, extras))
+            Ok(format!("{}?{}", self.url, joined))
         }
     }
 
@@ -100,9 +99,9 @@ impl Rustlink {
 
             if i == placeholder_indices.len() - 1 && !params.is_empty() {
                 let vecd: Vec<&str> = params.clone().into();
-                replacement = encode(&vecd.join(" ")).into_owned();
+                replacement = vecd.join(" ");
             } else if let Some(param) = params.pop_front() {
-                replacement = encode(param).into_owned();
+                replacement = param.to_string();
             }
 
             index_adjustment =
@@ -204,7 +203,7 @@ mod unit_tests {
                 description: "it renders a linkedin rustlink with multiple params".to_string(),
                 url: "https://linkedin.com/in/{^}".to_string(),
                 params: vec!["rust", "is", "cool"],
-                expected: Ok("https://linkedin.com/in/rust%20is%20cool".to_string()),
+                expected: Ok("https://linkedin.com/in/rust is cool".to_string()),
             },
             Test {
                 description: "it doesn't render any charaters in parentheses if no params received"
@@ -212,6 +211,29 @@ mod unit_tests {
                 url: "https://linkedin.com/in/{?q=shouldnotbehere^}".to_string(),
                 params: vec![],
                 expected: Ok("https://linkedin.com/in/".to_string()),
+            },
+            Test {
+                description: "it renders a linkedin rustlink with no variables but extra params"
+                    .to_string(),
+                url: "https://linkedin.com/in/?q=test".to_string(),
+                params: vec!["rust=cool"],
+                expected: Ok("https://linkedin.com/in/?rust=cool&q=test".to_string()),
+            },
+            Test {
+                description:
+                    "it renders a linkedin rustlink with no variables or query, but extra params"
+                        .to_string(),
+                url: "https://linkedin.com/in/".to_string(),
+                params: vec!["rust=cool"],
+                expected: Ok("https://linkedin.com/in/?rust=cool".to_string()),
+            },
+            Test {
+                description:
+                    "it renders a linkedin rustlink with no variables or query, but a hash, receiving extra params"
+                        .to_string(),
+                url: "https://linkedin.com/in/#test".to_string(),
+                params: vec!["rust=cool"],
+                expected: Ok("https://linkedin.com/in/?rust=cool#test".to_string()),
             },
         ];
 
@@ -252,14 +274,14 @@ mod unit_tests {
                     .to_string(),
                 url: "https://glean.com/q={*}".to_string(),
                 params: vec!["rust", "is", "cool"],
-                expected: Ok("https://glean.com/q=rust%20is%20cool".to_string()),
+                expected: Ok("https://glean.com/q=rust is cool".to_string()),
             },
             Test {
                 description: "it renders a glean rustlink with multiple params and fewer variables"
                     .to_string(),
                 url: "https://glean.com/q={*}&c={*}".to_string(),
                 params: vec!["rust", "is", "cool"],
-                expected: Ok("https://glean.com/q=rust&c=is%20cool".to_string()),
+                expected: Ok("https://glean.com/q=rust&c=is cool".to_string()),
             },
             Test {
                 description: "it renders a glean rustlink with params of shorter string length than the variable pattern"
@@ -305,7 +327,7 @@ mod unit_tests {
                     .to_string(),
                 url: "https://keats.github.io/{{ params[0] }}".to_string(),
                 params: vec![],
-                expected: Ok("https://keats.github.io/rust".to_string()),
+                expected: Err(anyhow::anyhow!("Failed to render Tera template")),
             },
             Test {
                 description:
@@ -317,8 +339,8 @@ https://keats.github.io/?q={{ params | join(sep=" ") | urlencode }}
 https://keats.github.io/
 {% endif %}"#
                     .to_string(),
-                params: vec!["rust", "is", "cool"],
-                expected: Ok("https://keats.github.io/?q=rust%20is%20cool".to_string()),
+                params: vec!["rust", "is", "cool{}"],
+                expected: Ok("https://keats.github.io/?q=rust%20is%20cool%7B%7D".to_string()),
             },
         ];
 

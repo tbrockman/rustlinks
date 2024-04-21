@@ -83,11 +83,9 @@ mod tests {
     #[test]
     fn test_lmdb() {
         let dir = tempfile::tempdir().unwrap();
-        let db_path = dir.path().join("rustlinks.db");
-        let f = std::fs::File::create(&db_path).unwrap();
         let env = EnvOpenOptions::new()
             .map_size(10_485_760)
-            .open(&db_path)
+            .open(&dir.path())
             .unwrap();
         let store = LMDB::new(env);
 
@@ -105,7 +103,6 @@ mod tests {
         let result = store.get("example").unwrap();
         assert_eq!(result, None);
 
-        drop(f);
         dir.close().unwrap();
     }
 }
