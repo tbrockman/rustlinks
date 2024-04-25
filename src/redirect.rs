@@ -38,7 +38,7 @@ pub async fn redirect(
             return Either::Right(HttpResponse::BadRequest().finish());
         };
 
-        match state.rustlink_store.get(alias) {
+        match state.rustlink_store.get_rustlink(alias) {
             Ok(Some(rustlink)) => {
                 let params: Vec<&str> = split.collect();
                 let url = if let Ok(u) = rustlink.render(params.clone()) {
@@ -89,8 +89,8 @@ mod integration_tests {
     use heed::EnvOpenOptions;
 
     use super::*;
+    use crate::state::AppState;
     use crate::storage::{RustlinkStore, LMDB};
-    use crate::{rustlink::Rustlink, state::AppState};
 
     #[actix_web::test]
     async fn it_templates_no_items_with_no_format_string() {
@@ -106,7 +106,10 @@ mod integration_tests {
             _type: crate::rustlink::RustlinkType::LinkedIn,
             revision: 0,
         };
-        rustlink_store.as_ref().set("test", &rustlink).unwrap();
+        rustlink_store
+            .as_ref()
+            .set_rustlink("test", &rustlink)
+            .unwrap();
 
         let app = test::init_service(
             App::new()
@@ -141,7 +144,10 @@ mod integration_tests {
             _type: crate::rustlink::RustlinkType::LinkedIn,
             revision: 0,
         };
-        rustlink_store.as_ref().set("test", &rustlink).unwrap();
+        rustlink_store
+            .as_ref()
+            .set_rustlink("test", &rustlink)
+            .unwrap();
 
         let app = test::init_service(
             App::new()
@@ -176,7 +182,10 @@ mod integration_tests {
             _type: crate::rustlink::RustlinkType::LinkedIn,
             revision: 0,
         };
-        rustlink_store.as_ref().set("test", &rustlink).unwrap();
+        rustlink_store
+            .as_ref()
+            .set_rustlink("test", &rustlink)
+            .unwrap();
 
         let app = test::init_service(
             App::new()
@@ -211,7 +220,10 @@ mod integration_tests {
             _type: crate::rustlink::RustlinkType::LinkedIn,
             revision: 0,
         };
-        rustlink_store.as_ref().set("test", &rustlink).unwrap();
+        rustlink_store
+            .as_ref()
+            .set_rustlink("test", &rustlink)
+            .unwrap();
 
         let app = test::init_service(
             App::new()
@@ -246,7 +258,10 @@ mod integration_tests {
             _type: crate::rustlink::RustlinkType::LinkedIn,
             revision: 0,
         };
-        rustlink_store.as_ref().set("test", &rustlink).unwrap();
+        rustlink_store
+            .as_ref()
+            .set_rustlink("test", &rustlink)
+            .unwrap();
 
         let app = test::init_service(
             App::new()
@@ -281,7 +296,10 @@ mod integration_tests {
             _type: crate::rustlink::RustlinkType::LinkedIn,
             revision: 0,
         };
-        rustlink_store.as_ref().set("test", &rustlink).unwrap();
+        rustlink_store
+            .as_ref()
+            .set_rustlink("test", &rustlink)
+            .unwrap();
 
         let app = test::init_service(
             App::new()

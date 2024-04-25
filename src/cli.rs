@@ -114,6 +114,21 @@ pub enum Commands {
         #[arg(long, num_args = 0..)]
         #[cfg(feature = "oauth")]
         oidc_providers: Vec<oidc::provider::OIDCProvider>,
+
+        /// URL to redirect to if the server is unable to find a given Glean Rustlink
+        #[arg(long)]
+        #[cfg(feature = "glean")]
+        glean_fallback_url: Option<String>,
+
+        /// URL to redirect to if the server is unable to find a given LinkedIn Rustlink
+        #[arg(long)]
+        #[cfg(feature = "li")]
+        li_fallback_url: Option<String>,
+
+        /// URL to redirect to if the server is unable to find a given Tera Rustlink
+        #[arg(long)]
+        #[cfg(feature = "tera")]
+        tera_fallback_url: Option<String>,
     },
     /// Setup the application, automatically performs certificate
     /// generation, etcd role+user provisioning, and other setup required for
@@ -180,6 +195,9 @@ mod unit_tests {
                 db_map_size: 0,
                 cert_file: None,
                 key_file: None,
+                li_fallback_url: None,
+                glean_fallback_url: None,
+                tera_fallback_url: None,
             },
         };
         let serialized = serde_json::to_string(&opts)?;

@@ -7,7 +7,7 @@ use crate::{rustlink::Rustlink, state::AppState, util};
 pub async fn get_rustlinks(state: web::Data<AppState>) -> impl Responder {
     // TODO: cursor-based pagination
     // TODO: search queries
-    if let Ok(rustlinks) = state.rustlink_store.list() {
+    if let Ok(rustlinks) = state.rustlink_store.list_rustlinks() {
         return HttpResponse::Ok().json(rustlinks);
     } else {
         return HttpResponse::InternalServerError().body("Internal Server Error");

@@ -1,16 +1,13 @@
-use std::{
-    io::{Read, Seek, Write},
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use etcd_rs::{
-    proto::etcdserverpb::WatchCreateRequest as ProtoWatchCreateRequest, KeyRange, WatchCanceler,
-    WatchCreateRequest, WatchInbound, WatchOp, WatchStream,
+    proto::etcdserverpb::WatchCreateRequest as ProtoWatchCreateRequest, KeyRange, KeyValueOp,
+    RangeRequest, WatchCanceler, WatchCreateRequest, WatchInbound, WatchOp, WatchStream,
 };
 use tokio::{sync::Mutex, time::sleep};
 
 use crate::{
+    cli::RustlinksOpts,
     errors::RustlinksError,
     rustlink::Rustlink,
     state::AppState,
@@ -36,6 +33,16 @@ impl Worker {
 
         loop {
             let range = KeyRange::prefix(NAMESPACE);
+
+            // first, get the last revision we know about.
+            // a) if it's zero, retrieve all keys from etcd, and start a watch from the latest revision.
+            // b) if it's not zero, start a watch from the last revision we know about if the watch fails due to the revision being
+            // compacted, drop our database and start over
+            let last_revision = self.state.rustlink_store.get_revision().unwrap_or(0);
+            let mut range_request = RangeRequest::new(range.clone());
+            range_request.proto.min_mod_revision = last_revision + 1;
+            let range_response = self.state.etcd_client.get(range_request).await;
+
             let request = WatchCreateRequest {
                 proto: ProtoWatchCreateRequest {
                     key: range.key,
@@ -57,10 +64,23 @@ impl Worker {
                     break;
                 }
                 Err(e) => {
+                    match e {
+                        etcd_rs::Error::IOError(_) => todo!(),
+                        etcd_rs::Error::InvalidURI(_) => todo!(),
+                        etcd_rs::Error::Transport(_) => todo!(),
+                        etcd_rs::Error::Response(_) => todo!(),
+                        etcd_rs::Error::ChannelClosed => todo!(),
+                        etcd_rs::Error::CreateWatch => todo!(),
+                        etcd_rs::Error::WatchEvent(_) => todo!(),
+                        etcd_rs::Error::KeepAliveLease => todo!(),
+                        etcd_rs::Error::WatchChannelSend(_) => todo!(),
+                        etcd_rs::Error::WatchEventExhausted => todo!(),
+                    }
+
                     eprint!("Failed to start etcd watch: {:?}, sleeping for {:?} seconds before retrying", e, backoff);
                     // Store the sleep future in the worker so that it can be cancelled
                     *self.sleep.lock().await = Some(sleep(Duration::from_secs(backoff)).await);
-                    backoff = std::cmp::min(backoff * 2, 60);
+                    backoff = std::cmp::min(backoff * 2, 300);
                 }
             }
         }
@@ -71,30 +91,40 @@ impl Worker {
                 WatchInbound::Ready(resp) => {
                     println!("received event: {:?}", resp);
 
-                    let futs = resp.events.into_iter().map(|event| async move {
+                    let results = resp.events.into_iter().map(|event| {
                         if let Some(alias) = util::key_to_alias(event.kv.key_str()) {
                             match event.event_type {
                                 etcd_rs::EventType::Put => {
                                     let value = event.kv.value;
                                     let rustlink = serde_json::from_slice::<Rustlink>(&value)?;
-                                    self.state.rustlink_store.set(&alias, &rustlink)
+                                    self.state.rustlink_store.set_rustlink(&alias, &rustlink)?;
                                 }
                                 etcd_rs::EventType::Delete => {
                                     // let mut revision =
                                     // self.state.revision.write().await;
                                     // *revision = event.kv.mod_revision;
-                                    self.state.rustlink_store.delete(&alias)
+                                    self.state.rustlink_store.delete_rustlink(&alias)?;
                                 }
                             }
+                            Ok(event.kv.mod_revision)
                         } else {
-                            Ok(())
+                            Ok(0)
                         }
                     });
-                    let results = futures::future::join_all(futs).await;
-                    let acc: Result<Vec<()>, RustlinksError> = results.into_iter().collect();
 
-                    if acc.is_err() {
-                        eprintln!("failed to process events: {:?}", acc.err());
+                    match results
+                        .into_iter()
+                        .collect::<Result<Vec<i64>, RustlinksError>>()
+                    {
+                        Ok(revisions) => {
+                            let max_revision = revisions.into_iter().max().unwrap_or(0);
+                            if let Err(e) = self.state.rustlink_store.set_revision(max_revision) {
+                                eprintln!("failed to set revision: {:?}", e);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("failed to process events: {:?}", e);
+                        }
                     }
                 }
                 WatchInbound::Interrupted(e) => {

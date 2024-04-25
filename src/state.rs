@@ -2,10 +2,8 @@ use std::sync::Arc;
 
 use etcd_rs::Client;
 #[cfg(feature = "oauth")]
-use tokio::sync::RwLock;
+use {crate::oidc, tokio::sync::RwLock};
 
-#[cfg(feature = "oauth")]
-use crate::oidc;
 use crate::storage::RustlinkStore;
 
 #[cfg(feature = "oauth")]

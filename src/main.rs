@@ -71,6 +71,12 @@ async fn start(cli: cli::RustlinksOpts) -> Result<(), errors::RustlinksError> {
         db_map_size,
         cert_file,
         key_file,
+        #[cfg(feature = "glean")]
+        glean_fallback_url,
+        #[cfg(feature = "li")]
+        li_fallback_url,
+        #[cfg(feature = "tera")]
+        tera_fallback_url,
     }: cli::Commands = cli.command
     else {
         unreachable!();
