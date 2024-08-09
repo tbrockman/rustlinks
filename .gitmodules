@@ -5,3 +5,6 @@
 [submodule "src/ssr-rs"]
 	path = src/ssr-rs
 	url = https://github.com/tbrockman/ssr-rs
+[submodule "src/rustlinks-browser"]
+	path = src/rustlinks-browser
+	url = https://github.com/tbrockman/rustlinks-browser
