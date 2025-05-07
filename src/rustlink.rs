@@ -30,6 +30,7 @@ pub struct Rustlink {
     #[serde(rename = "type")]
     pub _type: RustlinkType,
     pub revision: i64,
+    pub name: Option<String>,
 }
 
 impl Rustlink {
@@ -38,6 +39,7 @@ impl Rustlink {
             url,
             _type,
             revision,
+            name: None,
         }
     }
 

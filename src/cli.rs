@@ -15,9 +15,21 @@ pub struct RustlinksOpts {
     pub command: Commands,
 }
 
+use crate::{
+    commands::{install, start},
+    errors::RustlinksError,
+};
+
 impl RustlinksOpts {
     pub fn parse() -> Self {
         RustlinksOpts::parse_from(std::env::args())
+    }
+
+    pub async fn run(self) -> Result<(), RustlinksError> {
+        match self.command {
+            Commands::Start { .. } => start(self).await,
+            Commands::Install { .. } => install(self).await,
+        }
     }
 }
 
@@ -120,7 +132,7 @@ pub enum Commands {
         #[cfg(feature = "glean")]
         glean_fallback_url: Option<String>,
 
-        /// URL to redirect to if the server is unable to find a given LinkedIn Rustlink
+        /// URL to redirect to if the server is unable to find a given LinkedIn-style Rustlink
         #[arg(long)]
         #[cfg(feature = "li")]
         li_fallback_url: Option<String>,
@@ -171,6 +183,10 @@ pub enum Commands {
         /// etcd read-write user password
         #[arg(long, default_value = "default")]
         etcd_read_write_password: String,
+
+        /// Skip prompts
+        #[arg(short, default_value = "false")]
+        y: bool,
     },
 }
 

@@ -8,3 +8,6 @@
 [submodule "src/rustlinks-browser"]
 	path = src/rustlinks-browser
 	url = https://github.com/tbrockman/rustlinks-browser
+[submodule "src/mkcert"]
+	path = src/mkcert
+	url = https://github.com/tbrockman/mkcert

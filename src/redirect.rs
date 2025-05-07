@@ -89,6 +89,7 @@ mod integration_tests {
     use heed::EnvOpenOptions;
 
     use super::*;
+    use crate::rustlink::RustlinkType::LinkedIn;
     use crate::state::AppState;
     use crate::storage::{RustlinkStore, LMDB};
 
@@ -101,11 +102,11 @@ mod integration_tests {
         .unwrap();
         let db_path = tempfile::tempdir().unwrap();
         let rustlink_store = Arc::new(LMDB::new(EnvOpenOptions::new().open(db_path).unwrap()));
-        let rustlink = Rustlink {
-            url: "https://google.com/search?q=abcdefg".to_string(),
-            _type: crate::rustlink::RustlinkType::LinkedIn,
-            revision: 0,
-        };
+        let rustlink = Rustlink::new(
+            "https://google.com/search?q=abcdefg".to_string(),
+            LinkedIn,
+            0,
+        );
         rustlink_store
             .as_ref()
             .set_rustlink("test", &rustlink)
@@ -139,11 +140,7 @@ mod integration_tests {
         .unwrap();
         let db_path = tempfile::tempdir().unwrap();
         let rustlink_store = Arc::new(LMDB::new(EnvOpenOptions::new().open(db_path).unwrap()));
-        let rustlink = Rustlink {
-            url: "https://google.com/search?q={}".to_string(),
-            _type: crate::rustlink::RustlinkType::LinkedIn,
-            revision: 0,
-        };
+        let rustlink = Rustlink::new("https://google.com/search?q={}".to_string(), LinkedIn, 0);
         rustlink_store
             .as_ref()
             .set_rustlink("test", &rustlink)
@@ -177,11 +174,11 @@ mod integration_tests {
         .unwrap();
         let db_path = tempfile::tempdir().unwrap();
         let rustlink_store = Arc::new(LMDB::new(EnvOpenOptions::new().open(db_path).unwrap()));
-        let rustlink = Rustlink {
-            url: "https://google.com/search?q=abcdefg".to_string(),
-            _type: crate::rustlink::RustlinkType::LinkedIn,
-            revision: 0,
-        };
+        let rustlink = Rustlink::new(
+            "https://google.com/search?q=abcdefg".to_string(),
+            LinkedIn,
+            0,
+        );
         rustlink_store
             .as_ref()
             .set_rustlink("test", &rustlink)
@@ -215,11 +212,7 @@ mod integration_tests {
         .unwrap();
         let db_path = tempfile::tempdir().unwrap();
         let rustlink_store = Arc::new(LMDB::new(EnvOpenOptions::new().open(db_path).unwrap()));
-        let rustlink = Rustlink {
-            url: "https://google.com/search?q={^}".to_string(),
-            _type: crate::rustlink::RustlinkType::LinkedIn,
-            revision: 0,
-        };
+        let rustlink = Rustlink::new("https://google.com/search?q={^}".to_string(), LinkedIn, 0);
         rustlink_store
             .as_ref()
             .set_rustlink("test", &rustlink)
@@ -253,11 +246,7 @@ mod integration_tests {
         .unwrap();
         let db_path = tempfile::tempdir().unwrap();
         let rustlink_store = Arc::new(LMDB::new(EnvOpenOptions::new().open(db_path).unwrap()));
-        let rustlink = Rustlink {
-            url: "https://google.com/search?q={^}".to_string(),
-            _type: crate::rustlink::RustlinkType::LinkedIn,
-            revision: 0,
-        };
+        let rustlink = Rustlink::new("https://google.com/search?q={^}".to_string(), LinkedIn, 0);
         rustlink_store
             .as_ref()
             .set_rustlink("test", &rustlink)
@@ -291,11 +280,11 @@ mod integration_tests {
         .unwrap();
         let db_path = tempfile::tempdir().unwrap();
         let rustlink_store = Arc::new(LMDB::new(EnvOpenOptions::new().open(db_path).unwrap()));
-        let rustlink = Rustlink {
-            url: "https://google.com/search?q={^}&a={}".to_string(),
-            _type: crate::rustlink::RustlinkType::LinkedIn,
-            revision: 0,
-        };
+        let rustlink = Rustlink::new(
+            "https://google.com/search?q={^}&a={}".to_string(),
+            LinkedIn,
+            0,
+        );
         rustlink_store
             .as_ref()
             .set_rustlink("test", &rustlink)

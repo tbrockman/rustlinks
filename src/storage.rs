@@ -61,7 +61,12 @@ impl RustlinkStore for LMDB {
         {
             rustlinks = db
                 .iter(&rtxn)?
-                .filter_map(|f| f.ok().map(|(_, v)| v))
+                .filter_map(|f| {
+                    f.ok().map(|(key, mut v)| {
+                        v.name = Some(key.to_string());
+                        v
+                    })
+                })
                 .collect::<Vec<Rustlink>>();
         }
         rtxn.commit()?;
@@ -120,6 +125,7 @@ mod tests {
     use heed::EnvOpenOptions;
 
     use super::*;
+    use crate::rustlink::RustlinkType::LinkedIn;
 
     #[test]
     fn test_lmdb_rustlink_rw() {
@@ -130,20 +136,20 @@ mod tests {
             .open(&dir.path())
             .unwrap();
         let store = LMDB::new(env);
-
-        let rustlink = Rustlink {
-            url: "https://example.com".to_string(),
-            _type: crate::rustlink::RustlinkType::LinkedIn,
-            revision: 0,
-        };
+        let rustlink = Rustlink::new("https://example.com".to_string(), LinkedIn, 0);
 
         store.set_rustlink("example", &rustlink).unwrap();
         let result = store.get_rustlink("example").unwrap();
-        assert_eq!(result, Some(rustlink));
+        assert_eq!(result, Some(rustlink.clone()));
 
         store.delete_rustlink("example").unwrap();
         let result = store.get_rustlink("example").unwrap();
         assert_eq!(result, None);
+
+        store.set_rustlink("example", &rustlink).unwrap();
+        store.set_rustlink("example2", &rustlink).unwrap();
+        let result = store.list_rustlinks().unwrap();
+        assert_eq!(result.len(), 2);
 
         store.set_revision(123).unwrap();
         let revision = store.get_revision().unwrap();

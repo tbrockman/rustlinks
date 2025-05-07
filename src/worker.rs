@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use anyhow::Result;
 use etcd_rs::{
     proto::etcdserverpb::WatchCreateRequest as ProtoWatchCreateRequest, KeyRange, KeyValueOp,
     RangeRequest, WatchCanceler, WatchCreateRequest, WatchInbound, WatchOp, WatchStream,
@@ -7,7 +8,6 @@ use etcd_rs::{
 use tokio::{sync::Mutex, time::sleep};
 
 use crate::{
-    cli::RustlinksOpts,
     errors::RustlinksError,
     rustlink::Rustlink,
     state::AppState,
@@ -27,7 +27,7 @@ pub struct Worker {
 // like Postgres, or MySQL, or Redis, or whatever
 
 impl Worker {
-    pub async fn start(&self) -> std::io::Result<()> {
+    pub async fn start(&self) -> Result<(), RustlinksError> {
         let mut stream: WatchStream;
         let mut backoff = 1;
 
@@ -41,7 +41,15 @@ impl Worker {
             let last_revision = self.state.rustlink_store.get_revision().unwrap_or(0);
             let mut range_request = RangeRequest::new(range.clone());
             range_request.proto.min_mod_revision = last_revision + 1;
-            let range_response = self.state.etcd_client.get(range_request).await;
+            if let Ok(response) = self.state.etcd_client.get(range_request).await {
+                let kvs = response.kvs;
+                for kv in kvs {
+                    if let Some(alias) = util::key_to_alias(kv.key_str()) {
+                        let rustlink = serde_json::from_slice::<Rustlink>(&kv.value)?;
+                        self.state.rustlink_store.set_rustlink(&alias, &rustlink)?;
+                    }
+                }
+            }
 
             let request = WatchCreateRequest {
                 proto: ProtoWatchCreateRequest {
@@ -64,18 +72,18 @@ impl Worker {
                     break;
                 }
                 Err(e) => {
-                    match e {
-                        etcd_rs::Error::IOError(_) => todo!(),
-                        etcd_rs::Error::InvalidURI(_) => todo!(),
-                        etcd_rs::Error::Transport(_) => todo!(),
-                        etcd_rs::Error::Response(_) => todo!(),
-                        etcd_rs::Error::ChannelClosed => todo!(),
-                        etcd_rs::Error::CreateWatch => todo!(),
-                        etcd_rs::Error::WatchEvent(_) => todo!(),
-                        etcd_rs::Error::KeepAliveLease => todo!(),
-                        etcd_rs::Error::WatchChannelSend(_) => todo!(),
-                        etcd_rs::Error::WatchEventExhausted => todo!(),
-                    }
+                    // match e {
+                    //     etcd_rs::Error::IOError(_) => todo!(),
+                    //     etcd_rs::Error::InvalidURI(_) => todo!(),
+                    //     etcd_rs::Error::Transport(_) => todo!(),
+                    //     etcd_rs::Error::Response(_) => todo!(),
+                    //     etcd_rs::Error::ChannelClosed => todo!(),
+                    //     etcd_rs::Error::CreateWatch => todo!(),
+                    //     etcd_rs::Error::WatchEvent(_) => todo!(),
+                    //     etcd_rs::Error::KeepAliveLease => todo!(),
+                    //     etcd_rs::Error::WatchChannelSend(_) => todo!(),
+                    //     etcd_rs::Error::WatchEventExhausted => todo!(),
+                    // };
 
                     eprint!("Failed to start etcd watch: {:?}, sleeping for {:?} seconds before retrying", e, backoff);
                     // Store the sleep future in the worker so that it can be cancelled
